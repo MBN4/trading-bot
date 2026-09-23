@@ -1,0 +1,100 @@
+{
+  "version": 1,
+  "mode": "paper_only_research",
+  "updated_through": "2026-09-23",
+  "decision_policy": {
+    "minimum_forward_rows": 90,
+    "minimum_forward_trades": 2,
+    "performance_claims_require_real_data": true,
+    "consumed_periods_are_never_fresh_again": true,
+    "proposals_cannot_become_active_automatically": true
+  },
+  "data_periods": [
+    {
+      "id": "btc-development-2021-2023",
+      "start": "2021-01-01",
+      "end": "2023-12-31",
+      "status": "viewed_development",
+      "used_by": ["historical-baseline-evaluation", "strategy-comparison-2026"]
+    },
+    {
+      "id": "btc-comparison-development-2024",
+      "start": "2024-01-01",
+      "end": "2024-12-31",
+      "status": "viewed_development",
+      "used_by": ["strategy-comparison-2026"],
+      "note": "All of 2024 was later reused for comparison development; the overlapping prior holdout remains separately marked consumed."
+    },
+    {
+      "id": "btc-holdout-2024",
+      "start": "2024-03-14",
+      "end": "2024-12-31",
+      "status": "consumed_holdout",
+      "used_by": ["historical-baseline-evaluation", "strategy-comparison-2026"],
+      "note": "Consumed by the earlier SMA holdout and later reused as development; never untouched again."
+    },
+    {
+      "id": "btc-confirmation-2025",
+      "start": "2025-01-01",
+      "end": "2025-12-31",
+      "status": "viewed_confirmation",
+      "used_by": ["strategy-comparison-2026"]
+    },
+    {
+      "id": "btc-holdout-2026",
+      "start": "2026-01-01",
+      "end": "2026-08-31",
+      "status": "consumed_holdout",
+      "used_by": ["strategy-comparison-2026"],
+      "note": "Opened once after preregistration; never untouched again."
+    }
+  ],
+  "strategy_versions": [
+    {
+      "id": "sma-crossover-paper-v1",
+      "status": "active_paper_baseline",
+      "implementation": "paper.py",
+      "rules": "After each completed daily close, target long when the 5-day close SMA is above the 20-day close SMA; otherwise target cash. Fill a resulting signal at the next available daily open.",
+      "parameters": {"fast": 5, "slow": 20},
+      "developed_with": ["bundled synthetic regression fixtures", "BTCUSDT data through 2024-12-31"],
+      "viewed_period_ids": ["btc-development-2021-2023", "btc-comparison-development-2024", "btc-holdout-2024", "btc-confirmation-2025", "btc-holdout-2026"],
+      "decision": "Retained only as the existing baseline for controlled forward paper observation; no evidence of live-trading readiness."
+    },
+    {
+      "id": "sma-crossover-15-40-eval-v1",
+      "status": "evaluated_failed",
+      "implementation": "compare_strategies.py",
+      "rules": "Long when the 15-day close SMA is above the 40-day close SMA; otherwise cash; next-open execution.",
+      "parameters": {"fast": 15, "slow": 40},
+      "developed_with": ["BTCUSDT 2021-01-01 through 2024-12-31"],
+      "viewed_period_ids": ["btc-development-2021-2023", "btc-comparison-development-2024", "btc-holdout-2024", "btc-confirmation-2025", "btc-holdout-2026"],
+      "decision": "Failed preregistered positive-2025 confirmation and 2026 holdout criteria."
+    },
+    {
+      "id": "price-sma-150-eval-v1",
+      "status": "evaluated_failed",
+      "implementation": "compare_strategies.py",
+      "rules": "Long when the latest completed close is above its 150-day close SMA; otherwise cash; next-open execution.",
+      "parameters": {"window": 150},
+      "developed_with": ["BTCUSDT 2021-01-01 through 2024-12-31"],
+      "viewed_period_ids": ["btc-development-2021-2023", "btc-comparison-development-2024", "btc-holdout-2024", "btc-confirmation-2025", "btc-holdout-2026"],
+      "decision": "Failed preregistered positive-2025 confirmation criterion."
+    },
+    {
+      "id": "donchian-55-20-eval-v1",
+      "status": "evaluated_failed",
+      "implementation": "compare_strategies.py",
+      "rules": "Enter on a 55-day completed-close breakout and exit on a 20-day completed-close breakdown; retain state between thresholds; next-open execution.",
+      "parameters": {"entry": 55, "exit": 20},
+      "developed_with": ["BTCUSDT 2021-01-01 through 2024-12-31"],
+      "viewed_period_ids": ["btc-development-2021-2023", "btc-comparison-development-2024", "btc-holdout-2024", "btc-confirmation-2025", "btc-holdout-2026"],
+      "decision": "Failed preregistered positive-2025 confirmation criterion."
+    }
+  ],
+  "proposals": [],
+  "available_fresh_data": {
+    "through": "2026-08-31",
+    "status": "none_registered_after_last_consumed_period",
+    "note": "Data through this date has already been viewed. New completed data after 2026-08-31 must be supplied and registered before fresh evaluation."
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "provider": "Binance Public Data (data.binance.vision)",
+  "usage_permission": "Official Binance documentation offers public market data for download and programmatic retrieval; retained for personal local research only and not for redistribution",
+  "symbol": "BTCUSDT",
+  "market": "crypto",
+  "quote_currency": "USDT",
+  "timezone": "UTC",
+  "session_close": "Binance spot 1d kline, UTC open time; each archived row closes at 23:59:59.999 UTC and is published after completion",
+  "retrieval_date": "2026-09-23",
+  "adjustment_policy": "Raw Binance spot klines; no stock split or dividend adjustment applies",
+  "source_archives": [
+    {
+      "url": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/1d/BTCUSDT-1d-2024-01.zip",
+      "sha256": "474c1ce6fbb09e42cfc7231fee249aecc58af2fb5918570ffeba37998926b4a4"
+    },
+    {
+      "url": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/1d/BTCUSDT-1d-2024-02.zip",
+      "sha256": "4dae0b3d6b8ea59e39e6493b7964040c52459ea7b0a50b9c2793dcbfae53800d"
+    },
+    {
+      "url": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/1d/BTCUSDT-1d-2024-03.zip",
+      "sha256": "f7cd4fcafe79d1fac0c830d5fe152f7b3b9100e7c97e40352188766388af0ae0"
+    },
+    {
+      "url": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/1d/BTCUSDT-1d-2024-04.zip",
+      "sha256": "b4a8542c33e5251fb53f8a3352dd4e6f3cde4ac25f2c24935db8089aa1a2c3a0"
+    }
+  ],
+  "normalized_csv_sha256": "ff92b990344b28d408eed03c3a6dbdf4fc50e845457390288024f687cf341def",
+  "normalization": "Selected Binance columns open time, open, high, low, close, and base-asset volume; converted millisecond UTC open time to YYYY-MM-DD; preserved numeric values"
+}

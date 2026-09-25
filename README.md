@@ -317,7 +317,7 @@ The comparison report is `results/crypto_BTCUSDT_strategy_comparison.json`. All 
 - Active paper baseline: `sma-crossover-paper-v1`, fixed at `5/20`.
 - Evaluated failures: SMA `15/40`, price/SMA `150`, and Donchian `55/20` comparison champions.
 - Proposals: none.
-- Forward data observed: 24 completed real rows from `2026-09-01` through `2026-09-24`; this period is viewed and below the 90-row gate.
+- Forward market data processed: 24 completed real rows from `2026-09-01` through `2026-09-24`. The timestamp audit gives 0 verified contemporaneous observations, 22 catch-up candles, and 2 unknown-timing candles; only the first category counts toward the 90-observation gate.
 - Fresh registered but unviewed data: none after `2026-09-24`.
 - Overall status: `paper_research_only_no_strategy_passed`.
 
@@ -349,7 +349,7 @@ Performance labels prevent overstatement:
 
 - `demo_only_synthetic`: fixture output is a workflow demonstration, never evidence.
 - `insufficient_no_forward_rows`: no rows arrived after initialization.
-- `insufficient_short_forward_period`: fewer than 90 new completed rows.
+- `insufficient_short_forward_period`: fewer than 90 verified contemporaneous observations.
 - `insufficient_trade_count`: fewer than two simulated fills.
 - `reused_period_exploratory_only`: dates overlap a consumed holdout.
 - `unversioned_legacy_state`: the portfolio predates strategy-version tracking.
@@ -382,11 +382,90 @@ python3 research.py performance --state-root /tmp/trading-agent-paper --market c
 
 After its single appended synthetic row, the report is labeled `demo_only_synthetic`, `eligible_for_performance_claim: false`, and also records that one row is below the 90-row minimum and one fill is below the two-fill minimum. Its calculated returns are useful only for checking arithmetic and command wiring.
 
-For genuinely new evidence, supply complete permitted real candles after `2026-08-31`, preregister the question before inspecting outcomes, collect at least 90 new forward rows and two fills, and compare with cash and cost-matched buy-and-hold. These are minimum reporting gates, not guarantees. No amount of automated learning can eliminate market losses.
+For genuinely new evidence, supply complete permitted real candles after `2026-08-31`, preregister the question before inspecting outcomes, collect at least 90 verified contemporaneous observations and two fills, and compare with cash and cost-matched buy-and-hold. Catch-up accounting remains useful but does not earn observation credit. These are minimum reporting gates, not guarantees. No amount of automated learning can eliminate market losses.
 
 ## Daily BTCUSDT paper checklist
 
 This workflow is manual, local, and paper-only. It never downloads data or submits an order. Run it only after the Binance UTC daily candle has closed and the permitted public archive plus its published `.CHECKSUM` are available. Obtain those two files manually using the verified Binance Public Data process above. Never use an in-progress API response or the current UTC day's candle.
+
+### Beginner daily command
+
+1. Manually download the next `BTCUSDT-1d-YYYY-MM-DD.zip` and its exact `.CHECKSUM` companion from the official Binance Public Data daily directory. Do not download through this application.
+2. From the project directory, check what date is next:
+
+```bash
+python3 daily_paper.py progress
+```
+
+3. Substitute your two downloaded paths and today's local retrieval date, then run:
+
+```bash
+python3 daily_paper.py update \
+  --archive /path/to/BTCUSDT-1d-YYYY-MM-DD.zip \
+  --checksum /path/to/BTCUSDT-1d-YYYY-MM-DD.zip.CHECKSUM \
+  --retrieval-date YYYY-MM-DD
+```
+
+The command verifies the published SHA-256, ZIP structure, exact UTC open/close timestamps, strict next date, prior CSV and metadata, and provenance. It creates candidate CSV/metadata in a temporary directory, runs read-only readiness and preview, and prints every proposed event. Read that output. Type exactly `COMMIT` only when the date, hashes, one proposed `CANDLE_PROCESSED` event, and any prior-signal fill are correct. Any other response cancels without creating a dataset version or changing portfolio state. After confirmation it installs the immutable version, commits under the portfolio lock, verifies the event chain, reruns the same input, and requires that rerun to make no changes.
+
+Finally inspect the paper-only bookkeeping:
+
+```bash
+python3 paper.py --state-root paper_portfolios status --market crypto --symbol BTCUSDT --events 10
+python3 research.py performance --state-root paper_portfolios --market crypto --symbol BTCUSDT
+python3 daily_paper.py progress
+```
+
+`progress` is read-only and reports separate completed-market, verified-contemporaneous, catch-up, and unknown-timing counts, plus the remaining gate count and dynamic earliest possible gate candle. It does not say the strategy is profitable. The current real portfolio remains `insufficient_short_forward_period` until the minimum gate is actually reached and reviewed.
+
+**Observation rule:** a candle is contemporaneously observed only when its checksum-verified archive is committed during the first UTC calendar day after that candle's UTC close. This full next-day window allows for Binance's documented publication delay. A later commit is catch-up. New paper events record the actual UTC commit timestamp and classification. An old event without a reliable timestamp receives no gate credit unless independent immutable provenance proves its classification; uncertainty is labeled `unknown`, never guessed.
+
+The focused synthetic rehearsal is also the operator regression test. It builds an isolated synthetic BTCUSDT portfolio, supplies a locally generated Binance-shaped ZIP and checksum, cancels once to prove byte-for-byte non-mutation, then confirms once and checks the chain and idempotent rerun:
+
+```bash
+python3 -m unittest tests.test_daily_paper -v
+```
+
+Its output and `synthetic_demo_not_real_evidence` status are workflow checks only. They are never added to the real portfolio or research evidence.
+
+### Catching up
+
+Run the guided `update` command once per missed date, oldest first. Confirm each date separately. Never skip an unavailable archive: stop at that gap until both its ZIP and CHECKSUM exist and verify. Decisions, signals, and fills reconstructed for a late candle retain normal simulated accounting but are stamped `catch_up` in every newly emitted event and do not count toward 90. If catch-up reaches a candle still inside its next-UTC-day window, that candle is independently stamped `contemporaneous`; this is a mixed sequence, not retroactive credit for earlier rows. Re-run `progress` after each update. Do not combine archive rows, use the current UTC day, or inspect later strategy outcomes to revise the fixed rules.
+
+### Backup and restore
+
+Do not run an update while backing up. Create a dated local backup outside the working files:
+
+```bash
+mkdir -p backups/2026-10-15
+cp -a paper_portfolios research_registry.json data/real backups/2026-10-15/
+sha256sum paper_portfolios/crypto/BTCUSDT.json paper_portfolios/crypto/BTCUSDT.events.jsonl research_registry.json > backups/2026-10-15/MANIFEST.sha256
+```
+
+The backup includes portfolio state, append-only event log, any transaction journal, lock file, registry, all local versioned CSVs, and metadata. Keep at least one additional copy on storage you control; market data permissions still prohibit redistribution. To validate a backup without restoring it:
+
+```bash
+cd backups/2026-10-15 && sha256sum -c MANIFEST.sha256
+```
+
+Restore only while no paper command is running. First rename the damaged working paths for audit, copy the selected backup paths back, then verify before any update:
+
+```bash
+mv paper_portfolios paper_portfolios.damaged-YYYY-MM-DD
+mv research_registry.json research_registry.damaged-YYYY-MM-DD.json
+mv data/real data/real.damaged-YYYY-MM-DD
+cp -a backups/2026-10-15/paper_portfolios .
+cp -a backups/2026-10-15/research_registry.json .
+cp -a backups/2026-10-15/real data/real
+python3 paper.py --state-root paper_portfolios status --market crypto --symbol BTCUSDT --events 10
+python3 daily_paper.py progress
+```
+
+If a failed commit leaves `paper_portfolios/crypto/BTCUSDT.transaction.json`, do not restore over it first. Preserve it and run the exact `paper.py recover` command printed by the operator. If verification still fails, stop and restore a known-consistent backup; never hand-edit state or event JSON.
+
+### Advanced manual reference
+
+The steps below expose the components used by `daily_paper.py`. They are retained for diagnosis and audit, but routine operation should use the guided command above.
 
 The first time only, initialize the fixed baseline from the verified data through `2026-08-31`:
 
@@ -453,7 +532,7 @@ Rerunning the same committed command is idempotent and creates no duplicate fill
 - **Correction after processing:** do not edit portfolio state, events, or processed data. The immutable-prefix check rejects the correction by design. Preserve the old portfolio, document the correction, and initialize a new clearly named state root from corrected data. Never combine both lineages as one uninterrupted record.
 - **Readiness or preview failure:** stop and do not commit. Fix inputs by creating another versioned pair. If interruption leaves a `.transaction.json`, preserve it and run `python3 paper.py --state-root paper_portfolios recover --market crypto --symbol BTCUSDT`; inspect status before retrying. Never delete or hand-edit state, event, lock, or transaction files.
 
-The 90-row gate counts genuinely new completed candles after `2026-08-31`. At one candle per calendar day, day 1 is `2026-09-01` and day 90 is **`2026-11-29`**. That candle is complete only after its UTC close, effectively at the start of `2026-11-30` UTC. This is the earliest possible date, not a claim that those candles exist. All 90 rows must actually be obtained, verified, registered, and previously unseen; meeting the count does not prove profitability.
+The gate counts only verified contemporaneous observations, not merely completed or processed candles. The read-only command recalculates the earliest possible gate candle from verified credit and the next candle that could still be handled on time. As of the audit through `2026-09-24`, verified credit is zero, so 90 uninterrupted qualifying observations beginning with the `2026-09-25` candle would make **`2026-12-23`** the earliest possible 90th candle; its archive must then be verified and committed during `2026-12-24` UTC. Any missed window moves this date later. This is a conditional calendar calculation, not a claim those archives exist. Reaching 90 still does not establish profitability.
 
 ### Forward paper record through 2026-09-24
 
@@ -461,7 +540,9 @@ On `2026-09-24`, the official Binance Public Data daily BTCUSDT spot `1d` ZIPs f
 
 No prior BTCUSDT paper state existed, so `paper_portfolios/crypto/BTCUSDT.*` was initialized at the completed `2026-08-31` boundary with 5,000 USDT, registered strategy `sma-crossover-paper-v1` (`5/20`), 0.20% fee, 0.10% adverse slippage, 20% allocation, 3% buy-entry loss gate, `0.00000001` quantity step/minimum, and 10 USDT minimum notional. Readiness and preview passed before initialization and before the forward update.
 
-The chronological paper record now contains 24 candles through `2026-09-24` and three fills: buy `0.01268758` BTC on `2026-09-01`, sell it on `2026-09-11`, and buy `0.01220450` BTC on `2026-09-21`. The September 24 update added one candle event and no fill. At its close, paper cash was `3974.84865521` USDT, open paper units were `0.01220450` BTC, and marked equity was `5005.03342929` USDT. The September 24 ZIP SHA-256 is `c0328be51672faadf3e3abfd7d657946ae48abbc2d5b894e9d92fa94e21006c3`; the versioned CSV SHA-256 is `44957ebba4c267f2332d966f6306badad5189d6d1a57638f9846afcbfeba1580`. Its metadata is `data/real/binance_btcusdt_daily_2025-01-01_2026-09-24.metadata.json`. The event chain verified, and an identical rerun made no file changes. Research status remains `insufficient_short_forward_period`: 24 of 90 rows, not evidence of profitability. September 1 is the first counted row; November 29 remains the earliest possible 90th candle, subject to future archive availability and verification.
+The chronological paper record now contains 24 candles through `2026-09-24` and three fills: buy `0.01268758` BTC on `2026-09-01`, sell it on `2026-09-11`, and buy `0.01220450` BTC on `2026-09-21`. The September 24 update added one candle event and no fill. At its close, paper cash was `3974.84865521` USDT, open paper units were `0.01220450` BTC, and marked equity was `5005.03342929` USDT. The September 24 ZIP SHA-256 is `c0328be51672faadf3e3abfd7d657946ae48abbc2d5b894e9d92fa94e21006c3`; the versioned CSV SHA-256 is `44957ebba4c267f2332d966f6306badad5189d6d1a57638f9846afcbfeba1580`. Its metadata is `data/real/binance_btcusdt_daily_2025-01-01_2026-09-24.metadata.json`. The event chain verified, and an identical rerun made no file changes.
+
+The immutable legacy events contain no observation timestamps. Aggregate metadata proves the September 1–23 archives were retrieved on September 24. Therefore September 1–22 are definitely catch-up. September 23 could have met the next-day rule, and the separate September 24 archive was retrieved September 25, but neither event has a reliable commit timestamp; both are conservatively `unknown`. No historical event was rewritten. The audited gate count is consequently 0 contemporaneous, 22 catch-up, and 2 unknown out of 24 completed market candles.
 
 `--max-daily-loss 0.03` only blocks a new buy on a row after the close-based equity drop is observed. It does not liquidate a held position and cannot guarantee a maximum loss. Gaps, slippage, held positions, market closures, sparse data, and delayed execution can produce larger losses.
 

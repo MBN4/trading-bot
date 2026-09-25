@@ -43,8 +43,10 @@ def performance_state(kind='real', version='sma-crossover-paper-v1'):
 
 def performance_history():
     return [
-        {'type': 'CANDLE_PROCESSED', 'date': '2026-09-01', 'equity': 1000.0},
-        {'type': 'CANDLE_PROCESSED', 'date': '2026-09-02', 'equity': 1100.0},
+        {'type': 'CANDLE_PROCESSED', 'date': '2026-09-01', 'equity': 1000.0,
+         'observation_classification': 'contemporaneous'},
+        {'type': 'CANDLE_PROCESSED', 'date': '2026-09-02', 'equity': 1100.0,
+         'observation_classification': 'contemporaneous'},
     ]
 
 
@@ -57,7 +59,7 @@ class ResearchControlTests(unittest.TestCase):
         self.assertEqual(consumed['btc-holdout-2026']['status'], 'consumed_holdout')
         self.assertEqual(report['overall_status'], 'paper_research_only_no_strategy_passed')
         self.assertEqual(report['available_fresh_data']['status'],
-                         'forward_observed_below_90_row_gate')
+                         'forward_observation_gate_zero_of_90')
 
     def test_proposal_is_isolated_from_active_strategy(self):
         registry = registry_copy()
@@ -112,7 +114,7 @@ class ResearchControlTests(unittest.TestCase):
         self.assertEqual(synthetic['claim_status'], 'demo_only_synthetic')
         self.assertFalse(synthetic['eligible_for_performance_claim'])
         self.assertIn('synthetic_fixture_demo_only', synthetic['limitations'])
-        self.assertTrue(any(item.startswith('short_forward_period_')
+        self.assertTrue(any(item.startswith('contemporaneous_observations_')
                             for item in synthetic['limitations']))
 
         reused_state = performance_state()
@@ -123,8 +125,10 @@ class ResearchControlTests(unittest.TestCase):
             {'fill_date': '2026-08-31', 'fee': 10},
         ]
         reused_history = [
-            {'type': 'CANDLE_PROCESSED', 'date': '2026-08-30', 'equity': 1000},
-            {'type': 'CANDLE_PROCESSED', 'date': '2026-08-31', 'equity': 1100},
+            {'type': 'CANDLE_PROCESSED', 'date': '2026-08-30', 'equity': 1000,
+             'observation_classification': 'contemporaneous'},
+            {'type': 'CANDLE_PROCESSED', 'date': '2026-08-31', 'equity': 1100,
+             'observation_classification': 'contemporaneous'},
         ]
         registry['decision_policy']['minimum_forward_rows'] = 2
         registry['decision_policy']['minimum_forward_trades'] = 2

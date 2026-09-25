@@ -93,6 +93,23 @@ def validate_candle_completeness(bars, completed_through):
     return str(confirmed)
 
 
+def observation_classification(candle_day, observed_at=None):
+    """Classify a completed candle using the first-next-UTC-day publication allowance."""
+    observed_at = observed_at or datetime.now(timezone.utc)
+    if observed_at.tzinfo is None:
+        raise ValueError('Observation timestamp must include a UTC offset')
+    observed_at = observed_at.astimezone(timezone.utc)
+    delay_days = (observed_at.date() - candle_day).days
+    if delay_days < 1:
+        raise ValueError('A daily candle cannot be observed before its UTC session closes')
+    classification = 'contemporaneous' if delay_days == 1 else 'catch_up'
+    return {
+        'observation_classification': classification,
+        'observed_at_utc': observed_at.isoformat().replace('+00:00', 'Z'),
+        'observation_rule': 'committed on first UTC calendar day after candle close',
+    }
+
+
 METADATA_FIELDS = ('provider', 'usage_permission', 'symbol', 'market',
                    'quote_currency', 'timezone', 'session_close',
                    'retrieval_date', 'adjustment_policy')
@@ -309,7 +326,7 @@ def initialize_portfolio(bars, csv_path, *, market, symbol, dataset_kind, data_s
     return state, events
 
 
-def process_updates(state, bars, completed_through=None):
+def process_updates(state, bars, completed_through=None, observed_at=None):
     stored = state['processed_bars']
     incoming = [bar_record(bar) for bar in bars]
     if len(incoming) < len(stored):
@@ -319,6 +336,7 @@ def process_updates(state, bars, completed_through=None):
     events = []
     for index in range(len(stored), len(bars)):
         bar = bars[index]
+        first_event = len(events)
         fill_event = fill_pending(state, bar)
         if fill_event:
             events.append(fill_event)
@@ -333,6 +351,9 @@ def process_updates(state, bars, completed_through=None):
         state['pending_signal'] = pending
         if decision:
             events.append(decision)
+        observation = observation_classification(bar.day, observed_at)
+        for emitted in events[first_event:]:
+            emitted.update(observation)
         state['equity'] = equity
         state['last_equity'] = equity
         state['last_processed_date'] = str(bar.day)

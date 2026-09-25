@@ -9,6 +9,20 @@
     "consumed_periods_are_never_fresh_again": true,
     "proposals_cannot_become_active_automatically": true
   },
+  "forward_observation_audit": [
+    {
+      "start": "2026-09-01",
+      "end": "2026-09-22",
+      "classification": "catch_up",
+      "basis": "The aggregate dataset metadata records retrieval on 2026-09-24, after each candle's first eligible UTC publication day. The immutable events have no observation timestamps."
+    },
+    {
+      "start": "2026-09-23",
+      "end": "2026-09-24",
+      "classification": "unknown",
+      "basis": "Retrieval-date metadata is compatible with next-day handling, but the immutable legacy events contain no reliable observation timestamp, so no contemporaneous gate credit is awarded."
+    }
+  ],
   "data_periods": [
     {
       "id": "btc-development-2021-2023",
@@ -54,7 +68,7 @@
       "end": "2026-09-24",
       "status": "viewed_forward_paper",
       "used_by": ["sma-crossover-paper-v1"],
-      "note": "24 completed real BTCUSDT UTC daily candles processed chronologically in the fixed paper baseline; below the 90-row reporting gate and no longer unviewed."
+      "note": "24 completed real BTCUSDT UTC daily candles processed chronologically. Timestamp audit: 0 verified contemporaneous observations, 22 catch-up, 2 unknown; all are viewed, but only verified contemporaneous observations can count toward the gate."
     }
   ],
   "strategy_versions": [
@@ -102,7 +116,7 @@
   "proposals": [],
   "available_fresh_data": {
     "through": "2026-09-24",
-    "status": "forward_observed_below_90_row_gate",
-    "note": "24 completed real forward rows from 2026-09-01 through 2026-09-24 have been viewed by the fixed paper baseline. No unviewed data is registered; the next eligible row must be after 2026-09-24."
+    "status": "forward_observation_gate_zero_of_90",
+    "note": "24 completed real rows through 2026-09-24 are viewed: 0 verified contemporaneous, 22 catch-up, and 2 unknown. The next potentially qualifying candle is after 2026-09-24; catch-up and unknown rows never receive gate credit."
   }
 }

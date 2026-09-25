@@ -57,6 +57,24 @@ def overlaps_consumed_period(registry, start_day, end_day):
     return overlaps
 
 
+def observation_counts(candle_events, registry):
+    audited = {}
+    for period in registry.get('forward_observation_audit', []):
+        start = date.fromisoformat(period['start'])
+        end = date.fromisoformat(period['end'])
+        cursor = start
+        while cursor <= end:
+            audited[str(cursor)] = period['classification']
+            cursor = date.fromordinal(cursor.toordinal() + 1)
+    counts = {'contemporaneous': 0, 'catch_up': 0, 'unknown': 0}
+    for item in candle_events:
+        classification = item.get('observation_classification') or audited.get(item['date'], 'unknown')
+        if classification not in counts:
+            classification = 'unknown'
+        counts[classification] += 1
+    return counts
+
+
 def forward_performance(state, history, registry):
     version_id = state.get('strategy_version', 'unversioned_legacy')
     version = None
@@ -92,11 +110,17 @@ def forward_performance(state, history, registry):
         raise ValueError('Forward candle events do not match stored processed bars')
     minimum_rows = registry['decision_policy']['minimum_forward_rows']
     minimum_trades = registry['decision_policy']['minimum_forward_trades']
+    observations = observation_counts(candle_events, registry)
+    verified_rows = observations['contemporaneous']
     fills = [fill for fill in state['fills']
              if start_day <= date.fromisoformat(fill['fill_date']) <= end_day]
     reused = overlaps_consumed_period(registry, start_day, end_day)
-    if len(period_bars) < minimum_rows:
-        limitations.append(f'short_forward_period_{len(period_bars)}_rows_below_{minimum_rows}')
+    if verified_rows < minimum_rows:
+        limitations.append(f'contemporaneous_observations_{verified_rows}_below_{minimum_rows}')
+    if observations['catch_up']:
+        limitations.append(f'catch_up_candles_{observations["catch_up"]}_excluded_from_gate')
+    if observations['unknown']:
+        limitations.append(f'unknown_observation_timing_{observations["unknown"]}_excluded_from_gate')
     if len(fills) < minimum_trades:
         limitations.append(f'trade_count_{len(fills)}_below_{minimum_trades}')
     if reused:
@@ -115,7 +139,7 @@ def forward_performance(state, history, registry):
 
     if state.get('dataset_kind') == 'synthetic':
         claim_status = 'demo_only_synthetic'
-    elif len(period_bars) < minimum_rows:
+    elif verified_rows < minimum_rows:
         claim_status = 'insufficient_short_forward_period'
     elif reused:
         claim_status = 'reused_period_exploratory_only'
@@ -141,6 +165,12 @@ def forward_performance(state, history, registry):
             'forward_rows': len(period_bars),
         },
         'costs': {'fee_rate': state['fee'], 'slippage_rate': state['slippage']},
+        'observation_counts': {
+            'completed_market_candles': len(period_bars),
+            'verified_contemporaneous_observations': verified_rows,
+            'catch_up_candles': observations['catch_up'],
+            'unknown_observation_timing': observations['unknown'],
+        },
         'strategy_performance': {
             'initial': initial,
             'final': round(final_equity, 2),

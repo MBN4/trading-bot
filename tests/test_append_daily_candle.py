@@ -26,7 +26,11 @@ class DailyCandleAppendTests(unittest.TestCase):
             'symbol': 'TEST_USD', 'market': 'crypto', 'quote_currency': 'USD',
             'timezone': 'UTC', 'session_close': 'synthetic completed daily rows',
             'retrieval_date': '2026-08-31', 'adjustment_policy': 'not applicable',
-            'source_archives': []
+            'source_archives': [],
+            'forward_lineage': {
+                'appended_start': '2026-08-31', 'appended_end': '2026-08-31',
+                'completed_rows': 1
+            }
         }))
 
     def tearDown(self):
@@ -51,6 +55,8 @@ class DailyCandleAppendTests(unittest.TestCase):
         provenance = json.loads(self.output_metadata.read_text())
         self.assertEqual(provenance['manual_append']['date'], '2026-09-01')
         self.assertTrue(provenance['manual_append']['confirmed_complete'])
+        self.assertEqual(provenance['forward_lineage']['appended_end'], '2026-09-01')
+        self.assertEqual(provenance['forward_lineage']['completed_rows'], 2)
         self.assertEqual(provenance['normalized_csv_sha256'], file_sha256(self.output))
         self.assertEqual(self.csv.read_bytes(), before_csv)
         self.assertEqual(self.metadata.read_bytes(), before_metadata)

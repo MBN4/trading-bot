@@ -534,7 +534,7 @@ def status_view(state):
 def readiness_report(csv_path, metadata_path, *, market, symbol, dataset_kind,
                      quote_currency, capital_currency, completed_through,
                      fast=5, slow=20, quantity_step=None, min_quantity=None,
-                     min_notional=0.0, state_paths=None):
+                     min_notional=0.0, state_paths=None, lock_path=None):
     checks, errors = {}, []
 
     def check(name, operation):
@@ -588,6 +588,18 @@ def readiness_report(csv_path, metadata_path, *, market, symbol, dataset_kind,
             'min_notional': min_notional}))
     if state_paths:
         state_path, events_path, transaction_path = state_paths
+        portfolio_artifacts = any(path.exists() for path in state_paths)
+        if lock_path is not None and portfolio_artifacts and not Path(lock_path).exists():
+            checks['lock_integrity'] = {
+                'ok': False,
+                'error': f'Portfolio files exist but lock file is missing: {lock_path}',
+            }
+            errors.append('lock_integrity: restore the portfolio lock file before any update or recovery')
+        else:
+            checks['lock_integrity'] = {
+                'ok': True,
+                'value': 'existing lock shared' if portfolio_artifacts else 'not required before initialization',
+            }
         if transaction_path.exists():
             checks['portfolio_integrity'] = {
                 'ok': False,
@@ -690,8 +702,10 @@ def main():
                               'portfolio': status_view(state)}, indent=2))
             return
         if args.command == 'readiness':
-            with PortfolioLock(portfolio_lock_path(args.state_root, args.market, args.symbol),
-                               shared=True, timeout=0.0, create=True):
+            lock_path = portfolio_lock_path(args.state_root, args.market, args.symbol)
+            lock = (PortfolioLock(lock_path, shared=True, timeout=0.0, create=False)
+                    if lock_path.exists() else nullcontext())
+            with lock:
                 report = readiness_report(
                     args.csv, args.metadata, market=args.market, symbol=args.symbol,
                     dataset_kind=args.dataset_kind, quote_currency=args.quote_currency,
@@ -699,7 +713,8 @@ def main():
                     completed_through=args.completed_through, fast=args.fast,
                     slow=args.slow, quantity_step=args.quantity_step,
                     min_quantity=args.min_quantity, min_notional=args.min_notional,
-                    state_paths=(state_path, events_path, transaction_path))
+                    state_paths=(state_path, events_path, transaction_path),
+                    lock_path=lock_path)
             print(json.dumps(report, indent=2, default=str))
             if not report['ready']:
                 raise SystemExit(2)

@@ -209,9 +209,9 @@ def record_proposal(registry, *, proposal_id, base_version, rules, parameters,
         fresh_start = date.fromisoformat(future_data_start)
     except ValueError as exc:
         raise ValueError('--future-data-start must be YYYY-MM-DD') from exc
-    consumed_through = date.fromisoformat(registry['available_fresh_data']['through'])
-    if fresh_start <= consumed_through:
-        raise ValueError(f'Proposal future data must begin after consumed data {consumed_through}')
+    viewed_through = date.fromisoformat(registry['available_fresh_data']['through'])
+    if fresh_start <= viewed_through:
+        raise ValueError(f'Proposal future data must begin after registered/viewed data {viewed_through}')
     proposal = {
         'id': proposal_id,
         'status': 'proposed_not_active',

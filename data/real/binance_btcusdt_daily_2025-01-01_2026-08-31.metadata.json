@@ -8,7 +8,7 @@
   "session_close": "Binance spot 1d kline, UTC open time; each archived row closes at 23:59:59.999 UTC and is published after completion",
   "retrieval_date": "2026-09-23",
   "adjustment_policy": "Raw Binance spot klines; no stock split or dividend adjustment applies",
-  "research_boundary": "2025 is confirmation; 2026-01-01 through 2026-08-31 is the untouched holdout frozen in RESEARCH_PLAN.md before retrieval",
+  "research_boundary": "2025 is confirmation; 2026-01-01 through 2026-08-31 was the sealed holdout frozen in RESEARCH_PLAN.md before retrieval and is now consumed",
   "source_archives": [
     {"url": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/1d/BTCUSDT-1d-2025-01.zip", "sha256": "3a3eb1b723d944deb4dbef5ae361bbe39340a17fe987fe22e397ef03dca268d2"},
     {"url": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/1d/BTCUSDT-1d-2025-02.zip", "sha256": "27cfde08c9eb8e3801fb049e3be351a3e50ab46abd8553c24023fa98ea5e919e"},

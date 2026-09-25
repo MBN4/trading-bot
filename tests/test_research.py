@@ -57,7 +57,7 @@ class ResearchControlTests(unittest.TestCase):
         self.assertEqual(consumed['btc-holdout-2026']['status'], 'consumed_holdout')
         self.assertEqual(report['overall_status'], 'paper_research_only_no_strategy_passed')
         self.assertEqual(report['available_fresh_data']['status'],
-                         'none_registered_after_last_consumed_period')
+                         'forward_observed_below_90_row_gate')
 
     def test_proposal_is_isolated_from_active_strategy(self):
         registry = registry_copy()
@@ -68,7 +68,7 @@ class ResearchControlTests(unittest.TestCase):
             rules='Demo rule, never deployed.', parameters={'window': 60},
             reasoning='Exercise proposal isolation.',
             criteria={'minimum_return_pct': 1, 'minimum_rows': 90},
-            future_data_start='2026-09-01')
+            future_data_start='2026-09-25')
 
         self.assertEqual(proposal['status'], 'proposed_not_active')
         self.assertFalse(proposal['is_active'])
@@ -78,16 +78,16 @@ class ResearchControlTests(unittest.TestCase):
 
     def test_proposal_rejects_consumed_data_and_failed_base(self):
         registry = registry_copy()
-        with self.assertRaisesRegex(ValueError, 'after consumed data'):
+        with self.assertRaisesRegex(ValueError, 'after registered/viewed data'):
             record_proposal(
                 registry, proposal_id='bad-date', base_version='sma-crossover-paper-v1',
                 rules='x', parameters={'x': 1}, reasoning='x', criteria={'x': 1},
-                future_data_start='2026-08-31')
+                future_data_start='2026-09-24')
         with self.assertRaisesRegex(ValueError, 'active paper strategy'):
             record_proposal(
                 registry, proposal_id='bad-base', base_version='price-sma-150-eval-v1',
                 rules='x', parameters={'x': 1}, reasoning='x', criteria={'x': 1},
-                future_data_start='2026-09-01')
+                future_data_start='2026-09-25')
 
     def test_performance_calculation_matches_cash_and_buy_hold(self):
         registry = registry_copy()
@@ -149,7 +149,7 @@ class ResearchControlTests(unittest.TestCase):
         record_proposal(
             registry, proposal_id='round-trip-demo', base_version='sma-crossover-paper-v1',
             rules='demo', parameters={'window': 60}, reasoning='demo',
-            criteria={'minimum_rows': 90}, future_data_start='2026-09-01')
+            criteria={'minimum_rows': 90}, future_data_start='2026-09-25')
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / 'registry.json'
             path.write_text(json.dumps(registry), encoding='utf-8')

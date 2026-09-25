@@ -63,7 +63,7 @@ Family champions selected from 2022-2024 were SMA crossover `15/40`, price/SMA `
 
 `research_registry.json` is now the source of truth for strategy versions, fixed rules and parameters, development data, viewed periods, consumed holdouts, evaluated failures, proposals, and fresh-data status. The active forward-paper baseline is `sma-crossover-paper-v1` with fixed `5/20` windows. The comparison champions remain `evaluated_failed`; they are not active.
 
-Any future change must first be appended with `research.py propose`, including fixed rules, parameters, reasoning, criteria, and a future-data start after the last consumed date. A proposal is always `proposed_not_active`, has no evaluated periods, cannot deploy automatically, and does not modify `paper.py` settings. Promotion would require a separate explicit human decision after genuinely new data meets the recorded criteria. Automated learning or repeated parameter search cannot eliminate losses.
+Any future change must first be appended with `research.py propose`, including fixed rules, parameters, reasoning, criteria, and a future-data start after the latest registered/viewed date. A proposal is always `proposed_not_active`, has no evaluated periods, cannot deploy automatically, and does not modify `paper.py` settings. Promotion would require a separate explicit human decision after genuinely new data meets the recorded criteria. Automated learning or repeated parameter search cannot eliminate losses.
 
 ## Daily operating protocol
 
@@ -72,3 +72,7 @@ The active `sma-crossover-paper-v1` baseline remains fixed at `5/20`. Daily oper
 Missing days are appended in calendar order. A provider correction creates a new data lineage; processed history and append-only portfolio events are never rewritten. Readiness failures stop the workflow, and interrupted portfolio transactions use explicit `paper.py recover`. Synthetic demonstrations remain ineligible evidence.
 
 The earliest possible 90th new candle after the consumed `2026-08-31` boundary is dated `2026-11-29`, available only after that UTC session closes. This calculation does not assert that any of those candles already exist. Eligibility still requires 90 verified, genuinely new real rows, the minimum trade count, and all registry rules; it does not establish profit or live-trading readiness.
+
+## Forward observation record
+
+The fixed baseline was initialized at the completed `2026-08-31` boundary and has processed 24 checksum-verified real BTCUSDT daily candles from `2026-09-01` through `2026-09-24`. This viewed period is registered as `btc-forward-paper-2026-09-01_2026-09-24`; it cannot be treated as unviewed in later selection. The paper record has three fills and ended September 24 with marked equity of `5005.03342929` USDT. Its status is `insufficient_short_forward_period` because 24 rows are below the predefined 90-row gate. These bookkeeping results do not establish profitability or change the paper-only recommendation.

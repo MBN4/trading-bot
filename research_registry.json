@@ -1,7 +1,7 @@
 {
   "version": 1,
   "mode": "paper_only_research",
-  "updated_through": "2026-09-23",
+  "updated_through": "2026-09-25",
   "decision_policy": {
     "minimum_forward_rows": 90,
     "minimum_forward_trades": 2,
@@ -47,6 +47,14 @@
       "status": "consumed_holdout",
       "used_by": ["strategy-comparison-2026"],
       "note": "Opened once after preregistration; never untouched again."
+    },
+    {
+      "id": "btc-forward-paper-2026-09-01_2026-09-24",
+      "start": "2026-09-01",
+      "end": "2026-09-24",
+      "status": "viewed_forward_paper",
+      "used_by": ["sma-crossover-paper-v1"],
+      "note": "24 completed real BTCUSDT UTC daily candles processed chronologically in the fixed paper baseline; below the 90-row reporting gate and no longer unviewed."
     }
   ],
   "strategy_versions": [
@@ -57,7 +65,7 @@
       "rules": "After each completed daily close, target long when the 5-day close SMA is above the 20-day close SMA; otherwise target cash. Fill a resulting signal at the next available daily open.",
       "parameters": {"fast": 5, "slow": 20},
       "developed_with": ["bundled synthetic regression fixtures", "BTCUSDT data through 2024-12-31"],
-      "viewed_period_ids": ["btc-development-2021-2023", "btc-comparison-development-2024", "btc-holdout-2024", "btc-confirmation-2025", "btc-holdout-2026"],
+      "viewed_period_ids": ["btc-development-2021-2023", "btc-comparison-development-2024", "btc-holdout-2024", "btc-confirmation-2025", "btc-holdout-2026", "btc-forward-paper-2026-09-01_2026-09-24"],
       "decision": "Retained only as the existing baseline for controlled forward paper observation; no evidence of live-trading readiness."
     },
     {
@@ -93,8 +101,8 @@
   ],
   "proposals": [],
   "available_fresh_data": {
-    "through": "2026-08-31",
-    "status": "none_registered_after_last_consumed_period",
-    "note": "Data through this date has already been viewed. New completed data after 2026-08-31 must be supplied and registered before fresh evaluation."
+    "through": "2026-09-24",
+    "status": "forward_observed_below_90_row_gate",
+    "note": "24 completed real forward rows from 2026-09-01 through 2026-09-24 have been viewed by the fixed paper baseline. No unviewed data is registered; the next eligible row must be after 2026-09-24."
   }
 }

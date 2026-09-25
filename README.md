@@ -98,7 +98,7 @@ Paper-state format version 2 is not silently compatible with earlier unverified 
 
 ### Readiness check
 
-Run `readiness` before initializing or updating a forward paper portfolio. It is read-only: it validates inputs and existing portfolio files without writing, recovering, initializing, or changing timestamps.
+Run `readiness` before initializing or updating a forward paper portfolio. It is read-only: it validates inputs and existing portfolio files without writing, recovering, initializing, creating a lock, or changing timestamps. For an existing portfolio it takes a shared lock; if portfolio artifacts exist without their expected lock file, readiness fails with a lock-integrity error rather than repairing anything.
 
 ```bash
 python3 paper.py --state-root /tmp/trading-agent-paper readiness --market crypto --symbol BTC_USD --dataset-kind synthetic --csv /tmp/crypto_demo_updated.csv --metadata /tmp/crypto_demo_metadata.json --quote-currency USD --capital-currency USD --completed-through 2025-06-09
@@ -317,7 +317,8 @@ The comparison report is `results/crypto_BTCUSDT_strategy_comparison.json`. All 
 - Active paper baseline: `sma-crossover-paper-v1`, fixed at `5/20`.
 - Evaluated failures: SMA `15/40`, price/SMA `150`, and Donchian `55/20` comparison champions.
 - Proposals: none.
-- Fresh registered data: none after the consumed boundary `2026-08-31`.
+- Forward data observed: 24 completed real rows from `2026-09-01` through `2026-09-24`; this period is viewed and below the 90-row gate.
+- Fresh registered but unviewed data: none after `2026-09-24`.
 - Overall status: `paper_research_only_no_strategy_passed`.
 
 Show the read-only research status:
@@ -364,12 +365,12 @@ python3 research.py propose \
   --base-version sma-crossover-paper-v1 \
   --rules "Keep the registered SMA rule, but permit entry only when the preregistered volatility condition is met." \
   --parameters '{"fast":5,"slow":20,"volatility_window":30,"maximum_volatility":0.04}' \
-  --reasoning "Test whether a fixed volatility gate reduces whipsaw without using consumed periods for selection." \
+  --reasoning "Test whether a fixed volatility gate reduces whipsaw without using already viewed periods for selection." \
   --criteria '{"minimum_new_rows":180,"positive_periods_required":2,"maximum_drawdown_pct":-15,"positive_under_moderate_costs":true}' \
-  --future-data-start 2026-09-01
+  --future-data-start 2026-09-25
 ```
 
-Proposal IDs are unique. Their future data must begin after the last consumed date, criteria must be predefined, and the base must be the active paper strategy. Proposals remain `proposed_not_active` with `automatic_deployment_allowed: false`. There is intentionally no automatic promotion command.
+Proposal IDs are unique. Their future data must begin after the latest registered/viewed date, criteria must be predefined, and the base must be the active paper strategy. Proposals remain `proposed_not_active` with `automatic_deployment_allowed: false`. There is intentionally no automatic promotion command.
 
 ### Synthetic reporting demo
 
@@ -453,6 +454,14 @@ Rerunning the same committed command is idempotent and creates no duplicate fill
 - **Readiness or preview failure:** stop and do not commit. Fix inputs by creating another versioned pair. If interruption leaves a `.transaction.json`, preserve it and run `python3 paper.py --state-root paper_portfolios recover --market crypto --symbol BTCUSDT`; inspect status before retrying. Never delete or hand-edit state, event, lock, or transaction files.
 
 The 90-row gate counts genuinely new completed candles after `2026-08-31`. At one candle per calendar day, day 1 is `2026-09-01` and day 90 is **`2026-11-29`**. That candle is complete only after its UTC close, effectively at the start of `2026-11-30` UTC. This is the earliest possible date, not a claim that those candles exist. All 90 rows must actually be obtained, verified, registered, and previously unseen; meeting the count does not prove profitability.
+
+### Forward paper record through 2026-09-24
+
+On `2026-09-24`, the official Binance Public Data daily BTCUSDT spot `1d` ZIPs for `2026-09-01` through `2026-09-23` were retrieved outside the application. Every ZIP matched its separately published `.CHECKSUM`; no date was skipped. Exact daily URLs and SHA-256 values are recorded in `data/real/binance_btcusdt_daily_2025-01-01_2026-09-23.metadata.json`. The normalized 631-row CSV is `data/real/binance_btcusdt_daily_2025-01-01_2026-09-23.csv`, SHA-256 `6cde223d010133351a12552969dc76384f8b61dc9b7f1b798c39173c419cb046`.
+
+No prior BTCUSDT paper state existed, so `paper_portfolios/crypto/BTCUSDT.*` was initialized at the completed `2026-08-31` boundary with 5,000 USDT, registered strategy `sma-crossover-paper-v1` (`5/20`), 0.20% fee, 0.10% adverse slippage, 20% allocation, 3% buy-entry loss gate, `0.00000001` quantity step/minimum, and 10 USDT minimum notional. Readiness and preview passed before initialization and before the forward update.
+
+The chronological paper record now contains 24 candles through `2026-09-24` and three fills: buy `0.01268758` BTC on `2026-09-01`, sell it on `2026-09-11`, and buy `0.01220450` BTC on `2026-09-21`. The September 24 update added one candle event and no fill. At its close, paper cash was `3974.84865521` USDT, open paper units were `0.01220450` BTC, and marked equity was `5005.03342929` USDT. The September 24 ZIP SHA-256 is `c0328be51672faadf3e3abfd7d657946ae48abbc2d5b894e9d92fa94e21006c3`; the versioned CSV SHA-256 is `44957ebba4c267f2332d966f6306badad5189d6d1a57638f9846afcbfeba1580`. Its metadata is `data/real/binance_btcusdt_daily_2025-01-01_2026-09-24.metadata.json`. The event chain verified, and an identical rerun made no file changes. Research status remains `insufficient_short_forward_period`: 24 of 90 rows, not evidence of profitability. September 1 is the first counted row; November 29 remains the earliest possible 90th candle, subject to future archive availability and verification.
 
 `--max-daily-loss 0.03` only blocks a new buy on a row after the close-based equity drop is observed. It does not liquidate a held position and cannot guarantee a maximum loss. Gaps, slippage, held positions, market closures, sparse data, and delayed execution can produce larger losses.
 

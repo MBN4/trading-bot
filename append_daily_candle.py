@@ -116,6 +116,11 @@ def append_version(source_csv, source_metadata, output_csv, output_metadata, *,
         'source_url': source_url,
         'source_sha256': checksum,
     }
+    if isinstance(updated.get('forward_lineage'), dict):
+        lineage = dict(updated['forward_lineage'])
+        lineage['appended_end'] = str(day)
+        lineage['completed_rows'] = int(lineage.get('completed_rows', 0)) + 1
+        updated['forward_lineage'] = lineage
 
     atomic_text(output_csv, csv_content)
     atomic_text(output_metadata, json.dumps(updated, indent=2, sort_keys=True) + '\n')

@@ -382,6 +382,28 @@ class ForwardPaperTests(unittest.TestCase):
             self.assertTrue(any('candle_completeness' in error for error in bad['errors']))
             self.assertFalse(state_root.exists())
 
+    def test_readiness_cli_does_not_create_uninitialized_state_or_lock(self):
+        root = Path(__file__).resolve().parents[1]
+        bars = ohlcv_bars([100] * 80)
+        with tempfile.TemporaryDirectory() as tmp:
+            csv_path = Path(tmp) / 'bars.csv'
+            metadata_path = Path(tmp) / 'metadata.json'
+            state_root = Path(tmp) / 'never-created-state'
+            write_ohlcv(csv_path, bars)
+            write_metadata(metadata_path)
+            command = [sys.executable, 'paper.py', '--state-root', str(state_root),
+                       'readiness', '--market', 'crypto', '--symbol', 'TEST_USD',
+                       '--dataset-kind', 'synthetic', '--csv', str(csv_path),
+                       '--metadata', str(metadata_path), '--quote-currency', 'USD',
+                       '--capital-currency', 'USD', '--completed-through', '2025-03-21']
+            result = subprocess.run(command, cwd=root, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse(state_root.exists())
+            report = json.loads(result.stdout)
+            self.assertEqual(report['mode'], 'read_only_no_files_changed')
+            self.assertEqual(report['checks']['lock_integrity']['value'],
+                             'not required before initialization')
+
     def test_readiness_checks_recorded_csv_hash(self):
         bars = ohlcv_bars([100] * 80)
         with tempfile.TemporaryDirectory() as tmp:

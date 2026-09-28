@@ -124,7 +124,7 @@ def legacy_audit(registry_path: Path) -> dict[str, str]:
             classification = item["classification"]
         except (KeyError, ValueError, TypeError) as exc:
             raise OperatorError("Registry forward_observation_audit is malformed") from exc
-        if classification not in {"catch_up", "unknown"} or end < start:
+        if classification not in {"contemporaneous", "catch_up", "unknown"} or end < start:
             raise OperatorError("Registry legacy observation classification is invalid")
         cursor = start
         while cursor <= end:

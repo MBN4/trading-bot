@@ -1,7 +1,7 @@
 {
   "version": 1,
   "mode": "paper_only_research",
-  "updated_through": "2026-09-28",
+  "updated_through": "2026-10-01",
   "decision_policy": {
     "minimum_forward_rows": 90,
     "minimum_forward_trades": 2,
@@ -33,6 +33,18 @@
       "end": "2026-09-27",
       "classification": "contemporaneous",
       "basis": "The official ZIP and companion checksum were verified and committed on 2026-09-28, the first UTC calendar day after the candle closed."
+    },
+    {
+      "start": "2026-09-28",
+      "end": "2026-09-28",
+      "classification": "catch_up",
+      "basis": "The official ZIP and companion checksum were verified and committed on 2026-09-30, after the candle's first eligible UTC publication day."
+    },
+    {
+      "start": "2026-09-29",
+      "end": "2026-09-29",
+      "classification": "contemporaneous",
+      "basis": "The official ZIP and companion checksum were verified and committed on 2026-09-30, the first UTC calendar day after the candle closed."
     }
   ],
   "data_periods": [
@@ -75,12 +87,12 @@
       "note": "Opened once after preregistration; never untouched again."
     },
     {
-      "id": "btc-forward-paper-2026-09-01_2026-09-27",
+      "id": "btc-forward-paper-2026-09-01_2026-10-01",
       "start": "2026-09-01",
-      "end": "2026-09-27",
+      "end": "2026-10-01",
       "status": "viewed_forward_paper",
       "used_by": ["sma-crossover-paper-v1"],
-      "note": "27 completed real BTCUSDT UTC daily candles processed chronologically. Timestamp audit: 1 verified contemporaneous observation, 24 catch-up, 2 unknown; all are viewed, but only verified contemporaneous observations can count toward the gate."
+      "note": "31 completed real BTCUSDT UTC daily candles processed chronologically. Timestamp audit: 4 verified contemporaneous observations, 25 catch-up, 2 unknown; all are viewed, but only verified contemporaneous observations can count toward the gate. October 1 archive SHA-256: 544d2565f54cb6347dde9c65301ecd6a5bc9128a95deacad1b86d0d36ca6c1cc; versioned CSV SHA-256: 9d60a0ee3c31811fe6ce9a1fc2e4d596a5ff2f2a849a5f23c11870974dc76c0d."
     }
   ],
   "strategy_versions": [
@@ -91,7 +103,7 @@
       "rules": "After each completed daily close, target long when the 5-day close SMA is above the 20-day close SMA; otherwise target cash. Fill a resulting signal at the next available daily open.",
       "parameters": {"fast": 5, "slow": 20},
       "developed_with": ["bundled synthetic regression fixtures", "BTCUSDT data through 2024-12-31"],
-      "viewed_period_ids": ["btc-development-2021-2023", "btc-comparison-development-2024", "btc-holdout-2024", "btc-confirmation-2025", "btc-holdout-2026", "btc-forward-paper-2026-09-01_2026-09-27"],
+      "viewed_period_ids": ["btc-development-2021-2023", "btc-comparison-development-2024", "btc-holdout-2024", "btc-confirmation-2025", "btc-holdout-2026", "btc-forward-paper-2026-09-01_2026-10-01"],
       "decision": "Retained only as the existing baseline for controlled forward paper observation; no evidence of live-trading readiness."
     },
     {
@@ -127,8 +139,8 @@
   ],
   "proposals": [],
   "available_fresh_data": {
-    "through": "2026-09-27",
-    "status": "forward_observation_gate_one_of_90",
-    "note": "27 completed real rows through 2026-09-27 are viewed: 1 verified contemporaneous, 24 catch-up, and 2 unknown. Catch-up and unknown rows never receive gate credit."
+    "through": "2026-10-01",
+    "status": "forward_observation_gate_four_of_90",
+    "note": "31 completed real rows through 2026-10-01 are viewed: 4 verified contemporaneous, 25 catch-up, and 2 unknown. Catch-up and unknown rows never receive gate credit."
   }
 }

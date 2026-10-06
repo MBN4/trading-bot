@@ -1,7 +1,7 @@
 {
   "version": 1,
   "mode": "paper_only_research",
-  "updated_through": "2026-10-01",
+  "updated_through": "2026-10-05",
   "decision_policy": {
     "minimum_forward_rows": 90,
     "minimum_forward_trades": 2,
@@ -53,14 +53,19 @@
       "start": "2021-01-01",
       "end": "2023-12-31",
       "status": "viewed_development",
-      "used_by": ["historical-baseline-evaluation", "strategy-comparison-2026"]
+      "used_by": [
+        "historical-baseline-evaluation",
+        "strategy-comparison-2026"
+      ]
     },
     {
       "id": "btc-comparison-development-2024",
       "start": "2024-01-01",
       "end": "2024-12-31",
       "status": "viewed_development",
-      "used_by": ["strategy-comparison-2026"],
+      "used_by": [
+        "strategy-comparison-2026"
+      ],
       "note": "All of 2024 was later reused for comparison development; the overlapping prior holdout remains separately marked consumed."
     },
     {
@@ -68,7 +73,10 @@
       "start": "2024-03-14",
       "end": "2024-12-31",
       "status": "consumed_holdout",
-      "used_by": ["historical-baseline-evaluation", "strategy-comparison-2026"],
+      "used_by": [
+        "historical-baseline-evaluation",
+        "strategy-comparison-2026"
+      ],
       "note": "Consumed by the earlier SMA holdout and later reused as development; never untouched again."
     },
     {
@@ -76,23 +84,29 @@
       "start": "2025-01-01",
       "end": "2025-12-31",
       "status": "viewed_confirmation",
-      "used_by": ["strategy-comparison-2026"]
+      "used_by": [
+        "strategy-comparison-2026"
+      ]
     },
     {
       "id": "btc-holdout-2026",
       "start": "2026-01-01",
       "end": "2026-08-31",
       "status": "consumed_holdout",
-      "used_by": ["strategy-comparison-2026"],
+      "used_by": [
+        "strategy-comparison-2026"
+      ],
       "note": "Opened once after preregistration; never untouched again."
     },
     {
-      "id": "btc-forward-paper-2026-09-01_2026-10-01",
+      "id": "btc-forward-paper-2026-09-01_2026-10-05",
       "start": "2026-09-01",
-      "end": "2026-10-01",
+      "end": "2026-10-05",
       "status": "viewed_forward_paper",
-      "used_by": ["sma-crossover-paper-v1"],
-      "note": "31 completed real BTCUSDT UTC daily candles processed chronologically. Timestamp audit: 4 verified contemporaneous observations, 25 catch-up, 2 unknown; all are viewed, but only verified contemporaneous observations can count toward the gate. October 1 archive SHA-256: 544d2565f54cb6347dde9c65301ecd6a5bc9128a95deacad1b86d0d36ca6c1cc; versioned CSV SHA-256: 9d60a0ee3c31811fe6ce9a1fc2e4d596a5ff2f2a849a5f23c11870974dc76c0d."
+      "used_by": [
+        "sma-crossover-paper-v1"
+      ],
+      "note": "35 completed market candles: 5 verified contemporaneous observations, 28 catch-up, and 2 unknown-timing candles. There are 85 qualifying observations remaining. The earliest possible 90th qualifying candle is 2026-12-29, with review on 2026-12-30 UTC, conditional on every remaining next-day window being met. Archive hashes and actual commit timestamps are recorded in README.md and immutable portfolio events; versioned metadata preserves source provenance."
     }
   ],
   "strategy_versions": [
@@ -101,9 +115,22 @@
       "status": "active_paper_baseline",
       "implementation": "paper.py",
       "rules": "After each completed daily close, target long when the 5-day close SMA is above the 20-day close SMA; otherwise target cash. Fill a resulting signal at the next available daily open.",
-      "parameters": {"fast": 5, "slow": 20},
-      "developed_with": ["bundled synthetic regression fixtures", "BTCUSDT data through 2024-12-31"],
-      "viewed_period_ids": ["btc-development-2021-2023", "btc-comparison-development-2024", "btc-holdout-2024", "btc-confirmation-2025", "btc-holdout-2026", "btc-forward-paper-2026-09-01_2026-10-01"],
+      "parameters": {
+        "fast": 5,
+        "slow": 20
+      },
+      "developed_with": [
+        "bundled synthetic regression fixtures",
+        "BTCUSDT data through 2024-12-31"
+      ],
+      "viewed_period_ids": [
+        "btc-development-2021-2023",
+        "btc-comparison-development-2024",
+        "btc-holdout-2024",
+        "btc-confirmation-2025",
+        "btc-holdout-2026",
+        "btc-forward-paper-2026-09-01_2026-10-05"
+      ],
       "decision": "Retained only as the existing baseline for controlled forward paper observation; no evidence of live-trading readiness."
     },
     {
@@ -111,9 +138,20 @@
       "status": "evaluated_failed",
       "implementation": "compare_strategies.py",
       "rules": "Long when the 15-day close SMA is above the 40-day close SMA; otherwise cash; next-open execution.",
-      "parameters": {"fast": 15, "slow": 40},
-      "developed_with": ["BTCUSDT 2021-01-01 through 2024-12-31"],
-      "viewed_period_ids": ["btc-development-2021-2023", "btc-comparison-development-2024", "btc-holdout-2024", "btc-confirmation-2025", "btc-holdout-2026"],
+      "parameters": {
+        "fast": 15,
+        "slow": 40
+      },
+      "developed_with": [
+        "BTCUSDT 2021-01-01 through 2024-12-31"
+      ],
+      "viewed_period_ids": [
+        "btc-development-2021-2023",
+        "btc-comparison-development-2024",
+        "btc-holdout-2024",
+        "btc-confirmation-2025",
+        "btc-holdout-2026"
+      ],
       "decision": "Failed preregistered positive-2025 confirmation and 2026 holdout criteria."
     },
     {
@@ -121,9 +159,19 @@
       "status": "evaluated_failed",
       "implementation": "compare_strategies.py",
       "rules": "Long when the latest completed close is above its 150-day close SMA; otherwise cash; next-open execution.",
-      "parameters": {"window": 150},
-      "developed_with": ["BTCUSDT 2021-01-01 through 2024-12-31"],
-      "viewed_period_ids": ["btc-development-2021-2023", "btc-comparison-development-2024", "btc-holdout-2024", "btc-confirmation-2025", "btc-holdout-2026"],
+      "parameters": {
+        "window": 150
+      },
+      "developed_with": [
+        "BTCUSDT 2021-01-01 through 2024-12-31"
+      ],
+      "viewed_period_ids": [
+        "btc-development-2021-2023",
+        "btc-comparison-development-2024",
+        "btc-holdout-2024",
+        "btc-confirmation-2025",
+        "btc-holdout-2026"
+      ],
       "decision": "Failed preregistered positive-2025 confirmation criterion."
     },
     {
@@ -131,16 +179,27 @@
       "status": "evaluated_failed",
       "implementation": "compare_strategies.py",
       "rules": "Enter on a 55-day completed-close breakout and exit on a 20-day completed-close breakdown; retain state between thresholds; next-open execution.",
-      "parameters": {"entry": 55, "exit": 20},
-      "developed_with": ["BTCUSDT 2021-01-01 through 2024-12-31"],
-      "viewed_period_ids": ["btc-development-2021-2023", "btc-comparison-development-2024", "btc-holdout-2024", "btc-confirmation-2025", "btc-holdout-2026"],
+      "parameters": {
+        "entry": 55,
+        "exit": 20
+      },
+      "developed_with": [
+        "BTCUSDT 2021-01-01 through 2024-12-31"
+      ],
+      "viewed_period_ids": [
+        "btc-development-2021-2023",
+        "btc-comparison-development-2024",
+        "btc-holdout-2024",
+        "btc-confirmation-2025",
+        "btc-holdout-2026"
+      ],
       "decision": "Failed preregistered positive-2025 confirmation criterion."
     }
   ],
   "proposals": [],
   "available_fresh_data": {
-    "through": "2026-10-01",
-    "status": "forward_observation_gate_four_of_90",
-    "note": "31 completed real rows through 2026-10-01 are viewed: 4 verified contemporaneous, 25 catch-up, and 2 unknown. Catch-up and unknown rows never receive gate credit."
+    "through": "2026-10-05",
+    "status": "forward_observation_gate_five_of_90",
+    "note": "35 completed market candles: 5 verified contemporaneous observations, 28 catch-up, and 2 unknown-timing candles. There are 85 qualifying observations remaining. The earliest possible 90th qualifying candle is 2026-12-29, with review on 2026-12-30 UTC, conditional on every remaining next-day window being met."
   }
 }

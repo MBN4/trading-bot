@@ -317,8 +317,8 @@ The comparison report is `results/crypto_BTCUSDT_strategy_comparison.json`. All 
 - Active paper baseline: `sma-crossover-paper-v1`, fixed at `5/20`.
 - Evaluated failures: SMA `15/40`, price/SMA `150`, and Donchian `55/20` comparison champions.
 - Proposals: none.
-- Forward market data processed: 31 completed real rows from `2026-09-01` through `2026-10-01`. The timestamp audit gives 4 verified contemporaneous observations, 25 catch-up candles, and 2 unknown-timing candles; only the first category counts toward the 90-observation gate.
-- Fresh registered but unviewed data: none after `2026-10-01`.
+- Forward market data processed: 35 completed real rows from `2026-09-01` through `2026-10-05`. The timestamp audit gives 5 verified contemporaneous observations, 28 catch-up candles, and 2 unknown-timing candles; only the first category counts toward the 90-observation gate.
+- Fresh registered but unviewed data: none after `2026-10-05`.
 - Overall status: `paper_research_only_no_strategy_passed`.
 
 Show the read-only research status:
@@ -532,9 +532,26 @@ Rerunning the same committed command is idempotent and creates no duplicate fill
 - **Correction after processing:** do not edit portfolio state, events, or processed data. The immutable-prefix check rejects the correction by design. Preserve the old portfolio, document the correction, and initialize a new clearly named state root from corrected data. Never combine both lineages as one uninterrupted record.
 - **Readiness or preview failure:** stop and do not commit. Fix inputs by creating another versioned pair. If interruption leaves a `.transaction.json`, preserve it and run `python3 paper.py --state-root paper_portfolios recover --market crypto --symbol BTCUSDT`; inspect status before retrying. Never delete or hand-edit state, event, lock, or transaction files.
 
-The gate counts only verified contemporaneous observations, not merely completed or processed candles. The read-only command recalculates the earliest possible gate candle from verified credit and the next candle that could still be handled on time. After the October 1 update, the audit has 4 verified contemporaneous observations, so **`2026-12-26`** is the current earliest possible 90th qualifying candle; its archive must then be verified and committed during `2026-12-27` UTC. Any missed window moves this date later. This is a conditional calendar calculation, not a claim those archives exist. Reaching 90 still does not establish profitability.
+The gate counts only verified contemporaneous observations, not merely completed or processed candles. The read-only command recalculates the earliest possible gate candle from verified credit and the next candle that could still be handled on time. After the October 5 update, the audit has 5 verified contemporaneous observations, so **`2026-12-29`** is the current earliest possible 90th qualifying candle; its archive must then be verified and committed during `2026-12-30` UTC. Any missed window moves this date later. This is a conditional calendar calculation, not a claim those archives exist. Reaching 90 still does not establish profitability.
 
-### Forward paper record through 2026-10-01
+### Forward paper record through 2026-10-05
+
+On October 6 UTC, the missing October 2, 3, 4, and 5 candles were processed individually in strict order. Each official Binance Public Data ZIP matched its companion CHECKSUM and exact completed UTC timestamps. Each guided update staged a versioned CSV and metadata, passed readiness and preview, then committed exactly once. Actual commit timestamps determine the classifications below.
+
+| Candle | Actual commit timestamp (UTC) | Classification | Archive SHA-256 |
+|---|---|---|---|
+| 2026-10-02 | 2026-10-06T06:05:58.913390Z | catch_up | `97f00f9530c1ee2f091bb0fd157c2097e676cb4882c568490b2fed9d17d048da` |
+| 2026-10-03 | 2026-10-06T06:06:19.596207Z | catch_up | `4fad26c8ad8e581d66200b523a7b0fc723571cfe6c760f30f16497eb920a5d1b` |
+| 2026-10-04 | 2026-10-06T06:06:34.678267Z | catch_up | `7fbfe9a84ad5d0c2936b7cb489ea09f620e0813033a7d40043dd989f614175e1` |
+| 2026-10-05 | 2026-10-06T06:06:55.234173Z | contemporaneous | `af132ef68300bdb34acbdab1aec6d44d8b0f54d9e6f64f5f11f6b252f67a7ec7` |
+
+No new simulated fills occurred; the existing three fills remain unchanged. Ending cash is `3974.84865521` USDT, holdings `0.01220450` BTC, and equity `5021.59042012` USDT at close `85766.87`. All 42 events verify, with one candle event per date and no gaps or duplicates. Every update passed its identical rerun without events or portfolio file changes. The final 643-row CSV is `data/real/binance_btcusdt_daily_2025-01-01_2026-10-05.csv`, with SHA-256 `e7bfd5ea470c4e91d441a17839312cff69cb09b84e1425ed09cd79a5725a5929` and companion `.metadata.json`; the October 2–4 versions are retained.
+
+35 completed market candles: 5 verified contemporaneous observations, 28 catch-up, and 2 unknown-timing candles. There are 85 qualifying observations remaining. The earliest possible 90th qualifying candle is `2026-12-29`, with review on `2026-12-30` UTC, conditional on every remaining next-day window being met.
+
+The fixed SMA 5/20 strategy, fees, slippage, allocation, quantity limits, and all other paper settings are unchanged. October 6 is incomplete and was not processed. Status remains `insufficient_short_forward_period`; this is paper-only bookkeeping and no profitability claim. The guided workflow is unchanged: stop at any unavailable or invalid ZIP/CHECKSUM pair and never skip ahead.
+
+### Historical forward paper record through 2026-10-01
 
 On October 2, the October 1 official ZIP and companion CHECKSUM verified. Guided readiness and preview passed before exactly one candle was committed at `2026-10-02T05:51:35.624149Z` (event recorded at `2026-10-02T05:51:35.626399+00:00`), qualifying as contemporaneous. Archive SHA-256: `544d2565f54cb6347dde9c65301ecd6a5bc9128a95deacad1b86d0d36ca6c1cc`. The 639-row version `data/real/binance_btcusdt_daily_2025-01-01_2026-10-01.csv` and companion metadata preserve the prior prefix; CSV SHA-256: `9d60a0ee3c31811fe6ce9a1fc2e4d596a5ff2f2a849a5f23c11870974dc76c0d`. No fill occurred (3 total). Cash is `3974.84865521` USDT, holdings `0.01220450` BTC, and equity `5010.76722543` USDT at close `84880.05`. All 38 events verify; the identical rerun produced no events or file changes. Counts are 31 completed, 4 contemporaneous, 25 catch-up, and 2 unknown, leaving 86 qualifying observations. The earliest review remains December 27 UTC after the December 26 candle, conditional on every remaining window being met. SMA 5/20 and all paper settings remain fixed; October 2 was not processed.
 

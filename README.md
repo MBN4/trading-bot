@@ -317,8 +317,8 @@ The comparison report is `results/crypto_BTCUSDT_strategy_comparison.json`. All 
 - Active paper baseline: `sma-crossover-paper-v1`, fixed at `5/20`.
 - Evaluated failures: SMA `15/40`, price/SMA `150`, and Donchian `55/20` comparison champions.
 - Proposals: none.
-- Forward market data processed: 35 completed real rows from `2026-09-01` through `2026-10-05`. The timestamp audit gives 5 verified contemporaneous observations, 28 catch-up candles, and 2 unknown-timing candles; only the first category counts toward the 90-observation gate.
-- Fresh registered but unviewed data: none after `2026-10-05`.
+- Forward market data processed: 36 completed real rows from `2026-09-01` through `2026-10-06`. The timestamp audit gives 6 verified contemporaneous observations, 28 catch-up candles, and 2 unknown-timing candles; only the first category counts toward the 90-observation gate.
+- Fresh registered but unviewed data: none after `2026-10-06`.
 - Overall status: `paper_research_only_no_strategy_passed`.
 
 Show the read-only research status:
@@ -534,7 +534,20 @@ Rerunning the same committed command is idempotent and creates no duplicate fill
 
 The gate counts only verified contemporaneous observations, not merely completed or processed candles. The read-only command recalculates the earliest possible gate candle from verified credit and the next candle that could still be handled on time. After the October 5 update, the audit has 5 verified contemporaneous observations, so **`2026-12-29`** is the current earliest possible 90th qualifying candle; its archive must then be verified and committed during `2026-12-30` UTC. Any missed window moves this date later. This is a conditional calendar calculation, not a claim those archives exist. Reaching 90 still does not establish profitability.
 
-### Forward paper record through 2026-10-05
+### Forward paper record through 2026-10-06
+
+On October 7 UTC, October 5 was confirmed as the last processed date before processing exactly the October 6 candle. The official Binance Public Data ZIP matched its companion CHECKSUM and exact completed UTC timestamps. The guided update staged a new CSV and metadata, passed readiness and preview, and committed one candle at `2026-10-07T06:05:21.581937Z` (event recorded at `2026-10-07T06:05:21.582414+00:00`). This qualifies as contemporaneous because the actual commit occurred during October 7 UTC.
+
+- Archive SHA-256: `a9bfe3f7405ad80ca56d0719faf533dd66a405f7cea562b5afeb4ab220ae6982`.
+- CSV: `data/real/binance_btcusdt_daily_2025-01-01_2026-10-06.csv`, 644 rows, SHA-256 `b44a3e47975cf6f6e35418614457934b0cd17e3103d43d35599a9d8029b670d7`; companion `.metadata.json` retains provenance and the prior version is preserved.
+- No new simulated fills; 3 total. Cash: `3974.84865521` USDT; holdings: `0.01220450` BTC; equity: `5018.94277589` USDT at close `85549.93`. No pending signal.
+- All 43 events verify, with exactly one candle per date from September 1 through October 6. Prior CSV and event prefixes are unchanged. An identical portfolio rerun produced no events and preserved hashes, sizes, and modification timestamps of every portfolio and dataset file.
+
+36 completed market candles: 6 verified contemporaneous observations, 28 catch-up, and 2 unknown-timing candles. There are 84 qualifying observations remaining. The earliest possible 90th qualifying candle is `2026-12-29`, with review on `2026-12-30` UTC, conditional on every remaining next-day window being met.
+
+SMA 5/20 and all paper settings remain unchanged. The guided workflow is unchanged. October 7 is incomplete and was not processed. Status remains `insufficient_short_forward_period`; all activity is paper-only.
+
+### Historical forward paper record through 2026-10-05
 
 On October 6 UTC, the missing October 2, 3, 4, and 5 candles were processed individually in strict order. Each official Binance Public Data ZIP matched its companion CHECKSUM and exact completed UTC timestamps. Each guided update staged a versioned CSV and metadata, passed readiness and preview, then committed exactly once. Actual commit timestamps determine the classifications below.
 
@@ -549,7 +562,7 @@ No new simulated fills occurred; the existing three fills remain unchanged. Endi
 
 35 completed market candles: 5 verified contemporaneous observations, 28 catch-up, and 2 unknown-timing candles. There are 85 qualifying observations remaining. The earliest possible 90th qualifying candle is `2026-12-29`, with review on `2026-12-30` UTC, conditional on every remaining next-day window being met.
 
-The fixed SMA 5/20 strategy, fees, slippage, allocation, quantity limits, and all other paper settings are unchanged. October 6 is incomplete and was not processed. Status remains `insufficient_short_forward_period`; this is paper-only bookkeeping and no profitability claim. The guided workflow is unchanged: stop at any unavailable or invalid ZIP/CHECKSUM pair and never skip ahead.
+The fixed SMA 5/20 strategy, fees, slippage, allocation, quantity limits, and all other paper settings are unchanged. At the October 6 run, October 6 was incomplete and was not processed. Status remains `insufficient_short_forward_period`; this is paper-only bookkeeping and no profitability claim. The guided workflow is unchanged: stop at any unavailable or invalid ZIP/CHECKSUM pair and never skip ahead.
 
 ### Historical forward paper record through 2026-10-01
 

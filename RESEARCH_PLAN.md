@@ -71,9 +71,39 @@ The active `sma-crossover-paper-v1` baseline remains fixed at `5/20`. Daily oper
 
 Missing days are appended and confirmed one at a time in calendar order; an unavailable or invalid day stops catch-up. A contemporaneous observation is a checksum-verified candle committed during the first UTC calendar day after its UTC close, allowing the provider's next-day publication delay. Later reconstructed decisions and fills remain in simulated accounting but are event-labeled `catch_up` and excluded from the research gate. Unknown legacy timing receives no credit. A provider correction creates a new data lineage; processed history and append-only portfolio events are never rewritten. Readiness failures stop the workflow, interrupted portfolio transactions use explicit `paper.py recover`, and known-consistent local backups cover unrecoverable corruption. Synthetic rehearsals are labeled `synthetic_demo_not_real_evidence` and remain ineligible evidence.
 
-The earliest gate date is dynamic. 36 completed market candles: 6 verified contemporaneous observations, 28 catch-up, and 2 unknown-timing candles. There are 84 qualifying observations remaining. The earliest possible 90th qualifying candle is `2026-12-29`, with review on `2026-12-30` UTC, conditional on every remaining next-day window being met. Eligibility also requires the minimum trade count and all registry rules; it does not establish profit or live-trading readiness.
+The earliest gate date is dynamic. 41 completed market candles: 7 verified contemporaneous observations, 32 catch-up, and 2 unknown-timing candles. There are 83 qualifying observations remaining. The earliest possible 90th qualifying candle is `2027-01-02`, with review on `2027-01-03` UTC, conditional on every remaining next-day window being met. Eligibility also requires the minimum trade count and all registry rules; it does not establish profit or live-trading readiness.
 
 ## Forward observation record
+
+On October 12 UTC, the actual portfolio state was verified through October 6 before processing October 7-11 individually in strict calendar order. Each official Binance Public Data daily ZIP and companion CHECKSUM was downloaded over HTTPS, its SHA-256 and BTCUSDT member name verified, and its single complete UTC candle validated. Each guided update passed readiness and preview; proposed events were inspected before one COMMIT per date. No timestamps were backdated.
+
+| Candle | Actual commit timestamp (UTC) | Classification | Ending equity (USDT) |
+|---|---|---|---|
+| 2026-10-07 | 2026-10-12T06:55:01.696451Z | catch_up | 4991.74968535 |
+| 2026-10-08 | 2026-10-12T06:55:27.480368Z | catch_up | 4972.62084023 |
+| 2026-10-09 | 2026-10-12T06:55:44.992700Z | catch_up | 4983.37422518 |
+| 2026-10-10 | 2026-10-12T06:56:00.761170Z | catch_up | 4980.35078720 |
+| 2026-10-11 | 2026-10-12T06:56:20.687826Z | contemporaneous | 4980.35078720 |
+
+| Candle | Archive SHA-256 | Versioned CSV SHA-256 |
+|---|---|---|
+| 2026-10-07 | `0ddcb0b01671d17e7ee9956fdb19f594f408e6b6b60c632fc29ac4c9dddf05b8` | `8adf4de796d2f5e5eec1518d869618f56e39181b7e33d05ae6fd6e5f34108269` |
+| 2026-10-08 | `0478666aeb380f07ada5c94b667188b6d622c3e7c376b42960c0504484965ad9` | `98cddc4209e92aa67823e9c25ab5851d05e451f354cc9b83f9e5f36e770a2793` |
+| 2026-10-09 | `abc8f686e5559268bd4fd8cdac4b478f9c0810fe26944fa582282becb33ee2f4` | `e14dbde9a8e49c363783b24a2af412d9bf89cff82922197205f789511130cdf9` |
+| 2026-10-10 | `7980c0fc7d3e7ef67fc5b9abb0b6dce5668b8cbf76c4828616aa1c315498a5fa` | `fbda5fcb69f60ef2afd5616d9165c1d3fa3c7f9ce563ed157c496b709a35561c` |
+| 2026-10-11 | `6d01694528255af58912b5d72b48bcd0ad70e44afa625960af0bd407efe7ac84` | `ab9ed020b91dfa533a2a9e3c57bf123869f0758699ca23a0cd7f87f5dba73228` |
+
+Each CSV is `data/real/binance_btcusdt_daily_2025-01-01_<candle>.csv`, with companion `.metadata.json` preserving provenance and prior-version hashes. The final CSV has 649 rows; all previous versions remain intact.
+
+October 9 generated a SELL signal. The only new fill was the October 10 simulated sale of `0.01220450` BTC at `82552.92444` USDT (open `82635.56`, adverse slippage 0.10%), with fee `2.01503433` USDT and net cash proceeds `1005.50213200` USDT. It is catch-up accounting, not qualifying evidence. October 7-9 ended with cash `3974.84865521` USDT and `0.01220450` BTC; October 10-11 ended with cash and equity `4980.35078720` USDT and zero BTC. There are four fills total and no pending signal.
+
+All 50 events verify, with exactly one candle per day from September 1 through October 11. The CSV is continuous from January 1, 2025, and preserves the October 6 prefix. Every guided commit passed its idempotent rerun; the final identical rerun emitted no events and preserved hashes, sizes, and modification timestamps of all portfolio and dataset files.
+
+41 completed market candles: 7 verified contemporaneous observations, 32 catch-up, and 2 unknown-timing candles. There are 83 qualifying observations remaining. The earliest possible 90th qualifying candle is `2027-01-02`, with review on `2027-01-03` UTC, conditional on every remaining next-day window being met.
+
+SMA 5/20, initial capital 5000 USDT, fee 0.002, slippage 0.001, allocation 0.20, daily-loss gate 0.03, quantity step/minimum 0.00000001 BTC, and minimum notional 10 USDT remain fixed. No workflow or code changes were needed. October 12 was incomplete and was not processed. Status remains `insufficient_short_forward_period`; all activity is paper-only.
+
+### Historical record through October 6
 
 On October 7 UTC, October 5 was confirmed as the last processed date before processing exactly the October 6 candle. The official Binance Public Data ZIP matched its companion CHECKSUM and exact completed UTC timestamps. The guided update staged a new CSV and metadata, passed readiness and preview, and committed one candle at `2026-10-07T06:05:21.581937Z` (event recorded at `2026-10-07T06:05:21.582414+00:00`). This qualifies as contemporaneous because the actual commit occurred during October 7 UTC.
 

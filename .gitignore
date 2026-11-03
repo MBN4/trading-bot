@@ -1,2 +1,4 @@
 data/real/*.csv
 paper_portfolios/
+__pycache__/
+*.pyc

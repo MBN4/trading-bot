@@ -115,6 +115,18 @@ class DailyPaperOperatorTests(unittest.TestCase):
             result = subprocess.run(command, cwd=ROOT, input='', text=True, capture_output=True)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn('"committed": true', result.stdout)
+            # stdout must be pure JSON (consumers like bootstrap_forward_portfolio.py
+            # parse it with back-to-back raw_decode calls); any stray print()
+            # between the two objects breaks that.
+            decoder = json.JSONDecoder()
+            text, index, objects = result.stdout.strip(), 0, []
+            while index < len(text):
+                payload, index = decoder.raw_decode(text, index)
+                objects.append(payload)
+                while index < len(text) and text[index].isspace():
+                    index += 1
+            self.assertEqual(len(objects), 2)
+            self.assertTrue(objects[1].get('committed'))
             report = progress(state_root)
             self.assertEqual(report['completed_market_candles'], 1)
 

@@ -326,7 +326,10 @@ def perform_update(
                 "projected_portfolio": preview.get("portfolio"),
             }, indent=2))
             if auto_confirm:
-                print("--yes supplied: auto-confirming the exact proposed update shown above.")
+                print(
+                    "--yes supplied: auto-confirming the exact proposed update shown above.",
+                    file=sys.stderr,
+                )
             elif input("Type COMMIT to apply this paper update: ").strip() != "COMMIT":
                 print("Cancelled. Portfolio, registry, and versioned datasets were not changed.")
                 return 0

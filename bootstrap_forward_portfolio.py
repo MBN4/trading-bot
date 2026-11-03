@@ -153,7 +153,7 @@ def bootstrap(state_root: Path) -> dict:
     max_iterations = 800
     for _ in range(max_iterations):
         result = run([
-            sys.executable, str(ROOT / "daily_paper.py"), "auto-update", "--yes",
+            sys.executable, str(ROOT / "daily_paper.py"), "auto-update",
             "--state-root", str(state_root),
         ])
         payload = json.loads(result.stdout)

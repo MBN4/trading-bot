@@ -1,3 +1,4 @@
+import argparse
 import csv
 import hashlib
 import json
@@ -9,8 +10,11 @@ import zipfile
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
+from unittest import mock
+
 from agent import Bar, read_bars
-from daily_paper import progress, verify_archive
+import daily_paper
+from daily_paper import auto_update, fetch_archive, progress, verify_archive
 from paper import (load_portfolio, observation_classification, persist,
                    portfolio_paths, process_updates)
 
@@ -98,6 +102,68 @@ class DailyPaperOperatorTests(unittest.TestCase):
             self.assertEqual(report['catch_up_candles'], 1)
             self.assertEqual(report['verified_contemporaneous_observations'], 0)
             self.assertEqual(report['evidence_label'], 'synthetic_demo_not_real_evidence')
+
+    def test_yes_flag_commits_without_a_prompt(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as tmp:
+            root = Path(tmp)
+            state_root, _ = self.set_up_portfolio(root)
+            archive, checksum = self.make_archive(root, date(2026, 9, 1))
+            command = [sys.executable, str(ROOT / 'daily_paper.py'), 'update',
+                       '--archive', str(archive), '--checksum', str(checksum),
+                       '--retrieval-date', '2026-09-03', '--state-root', str(state_root),
+                       '--synthetic-demo', '--yes']
+            result = subprocess.run(command, cwd=ROOT, input='', text=True, capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn('"committed": true', result.stdout)
+            report = progress(state_root)
+            self.assertEqual(report['completed_market_candles'], 1)
+
+    def test_auto_update_fetches_the_next_required_archive_and_commits(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as tmp:
+            root = Path(tmp)
+            state_root, _ = self.set_up_portfolio(root)
+            archive, checksum = self.make_archive(root, date(2026, 9, 1))
+
+            def fake_fetch_archive(day, dest_dir):
+                self.assertEqual(day, date(2026, 9, 1))
+                return archive, checksum
+
+            args = argparse.Namespace(
+                state_root=state_root, retrieval_date=date(2026, 9, 3), synthetic_demo=True,
+            )
+            with mock.patch.object(daily_paper, 'fetch_archive', fake_fetch_archive):
+                returncode = auto_update(args)
+            self.assertEqual(returncode, 0)
+            report = progress(state_root)
+            self.assertEqual(report['completed_market_candles'], 1)
+
+    def test_auto_update_is_a_no_op_when_the_archive_is_not_yet_published(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as tmp:
+            root = Path(tmp)
+            state_root, _ = self.set_up_portfolio(root)
+            state, events, _ = portfolio_paths(state_root, 'crypto', 'BTCUSDT')
+            before = (state.read_bytes(), events.read_bytes())
+
+            def not_found(day, dest_dir):
+                raise daily_paper.OperatorError('Not yet published by Binance Public Data: fake-url')
+
+            args = argparse.Namespace(
+                state_root=state_root, retrieval_date=date(2026, 9, 3), synthetic_demo=True,
+            )
+            with mock.patch.object(daily_paper, 'fetch_archive', not_found):
+                returncode = auto_update(args)
+            self.assertEqual(returncode, 0)
+            self.assertEqual(before, (state.read_bytes(), events.read_bytes()))
+
+    def test_fetch_archive_builds_official_urls(self):
+        calls = []
+        with mock.patch.object(daily_paper, 'download', lambda url, dest: calls.append((url, dest))):
+            with tempfile.TemporaryDirectory() as tmp:
+                archive, checksum = fetch_archive(date(2026, 9, 1), Path(tmp))
+        self.assertEqual(archive.name, 'BTCUSDT-1d-2026-09-01.zip')
+        self.assertEqual(checksum.name, 'BTCUSDT-1d-2026-09-01.zip.CHECKSUM')
+        self.assertEqual(calls[0][0], f'{daily_paper.OFFICIAL_BASE}/BTCUSDT-1d-2026-09-01.zip')
+        self.assertEqual(calls[1][0], f'{daily_paper.OFFICIAL_BASE}/BTCUSDT-1d-2026-09-01.zip.CHECKSUM')
 
     def test_next_day_catch_up_mixed_and_restart_classifications(self):
         with tempfile.TemporaryDirectory(dir=ROOT) as tmp:

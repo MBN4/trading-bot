@@ -428,6 +428,20 @@ python3 -m unittest tests.test_daily_paper -v
 
 Its output and `synthetic_demo_not_real_evidence` status are workflow checks only. They are never added to the real portfolio or research evidence.
 
+### Automating the daily steps (optional)
+
+Everything above can also be run unattended, instead of by hand every day. This only automates the *manual labor* of fetching and typing commands; it does not change what gets checked or how a candle earns `contemporaneous` vs `catch_up` credit, which is still decided purely by the real wall-clock time the update is actually committed (see `paper.observation_classification`). It still never connects to a broker, exchange account, wallet, or order-submission API.
+
+`daily_paper.py auto-update` fetches the next required `BTCUSDT-1d-YYYY-MM-DD.zip` and its `.CHECKSUM` itself from the same public, documented Binance Public Data endpoint the manual steps use, verifies the checksum, runs readiness and preview, and (because it is meant to run unattended) skips the interactive `COMMIT` prompt and auto-confirms the exact proposed update after those checks pass:
+
+```bash
+python3 daily_paper.py auto-update --state-root paper_portfolios
+```
+
+If Binance has not published the next archive yet, this is a normal, non-error no-op (`"fetched": false`, exit code `0`) — run it again later or on the next scheduled run. The manual `update` subcommand also accepts `--yes` to skip the prompt if you already have the archive and checksum files and just want to script the confirmation step yourself.
+
+A ready-to-use GitHub Actions workflow is included at `.github/workflows/daily-btcusdt-paper-update.yml`: it runs once a day, calls `daily_paper.py auto-update --yes`, and persists `paper_portfolios/` and `data/real/` between runs with `actions/cache` (not by committing them — both remain git-ignored runtime state and licensed market data, same as in manual operation). Before it can do anything, complete the existing one-time local `init` from "Advanced manual reference" below and seed that cache once; the workflow file's header comment explains how. Review every run's `progress` output periodically — automating the daily step does not automate reading the result or deciding what to do with it.
+
 ### Catching up
 
 Run the guided `update` command once per missed date, oldest first. Confirm each date separately. Never skip an unavailable archive: stop at that gap until both its ZIP and CHECKSUM exist and verify. Decisions, signals, and fills reconstructed for a late candle retain normal simulated accounting but are stamped `catch_up` in every newly emitted event and do not count toward 90. If catch-up reaches a candle still inside its next-UTC-day window, that candle is independently stamped `contemporaneous`; this is a mixed sequence, not retroactive credit for earlier rows. Re-run `progress` after each update. Do not combine archive rows, use the current UTC day, or inspect later strategy outcomes to revise the fixed rules.

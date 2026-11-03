@@ -1,0 +1,86 @@
+name: Daily BTCUSDT forward paper update
+
+# Automates the manual steps in the README's "Daily BTCUSDT paper checklist":
+# download the official next-day Binance Public Data archive + its published
+# CHECKSUM, verify them, run readiness/preview, and commit exactly one
+# candle. It calls the same `daily_paper.py` code path a human runs by hand
+# (just non-interactively, via --yes) - it does not add a broker, exchange,
+# wallet, or order-submission connection, and it does not change how a
+# candle earns "contemporaneous" vs "catch_up" credit: that is still decided
+# purely by the real wall-clock commit time (see paper.observation_classification).
+#
+# One-time setup required before this workflow can do anything:
+#   1. Run the existing manual one-time init documented in the README's
+#      "Advanced manual reference" section locally, so that
+#      paper_portfolios/crypto/BTCUSDT.* and the base
+#      data/real/binance_btcusdt_daily_*.csv (+ .metadata.json) exist.
+#   2. Because paper_portfolios/ and data/real/*.csv are intentionally
+#      git-ignored (runtime state / licensed market data, see README), this
+#      workflow persists them between runs with actions/cache instead of
+#      committing them. Seed that cache once, e.g. by running this workflow
+#      via workflow_dispatch after pushing a throwaway commit that
+#      temporarily un-ignores those paths, or by using `gh cache` /
+#      `actions/cache` tooling to upload the local directories directly.
+#      Until that one-time seed exists, every run below just reports that no
+#      portfolio was found and exits non-zero.
+#
+# This workflow never fails loudly just because Binance has not published
+# the next archive yet (a normal daily occurrence) - `daily_paper.py
+# auto-update` reports that as a no-op with exit code 0.
+
+on:
+  schedule:
+    # Once per day, well inside the "first UTC calendar day after candle
+    # close" window the project's contemporaneous-observation rule requires.
+    - cron: "0 6 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: daily-btcusdt-paper-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Restore paper-portfolio state
+        id: restore
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            paper_portfolios
+            data/real
+          key: btcusdt-daily-paper-state-${{ github.run_id }}
+          restore-keys: |
+            btcusdt-daily-paper-state-
+
+      - name: Fail with setup instructions if no portfolio state was found
+        if: steps.restore.outputs.cache-hit != 'true'
+        run: |
+          echo "::error::No cached paper_portfolios/data state found. Complete the one-time local init from the README (section: Advanced manual reference) and seed the actions cache before this workflow can run. See the comment block at the top of this workflow file."
+          exit 1
+
+      - name: Run the unattended daily update
+        run: python3 daily_paper.py auto-update --yes --state-root paper_portfolios
+
+      - name: Show gate progress
+        if: always()
+        run: python3 daily_paper.py progress --state-root paper_portfolios
+
+      - name: Save updated paper-portfolio state
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            paper_portfolios
+            data/real
+          key: btcusdt-daily-paper-state-${{ github.run_id }}

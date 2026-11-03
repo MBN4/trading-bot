@@ -116,6 +116,23 @@ def run(command: list[str]) -> subprocess.CompletedProcess:
     return result
 
 
+def last_json_object(text: str) -> dict:
+    """auto-update prints a preview object and then a final result object
+    (or just one, for a no-op); only the last one reflects the outcome."""
+    decoder = json.JSONDecoder()
+    index = 0
+    text = text.strip()
+    payload = None
+    while index < len(text):
+        payload, end = decoder.raw_decode(text, index)
+        index = end
+        while index < len(text) and text[index].isspace():
+            index += 1
+    if payload is None:
+        raise OperatorError(f"auto-update produced no JSON output:\n{text}")
+    return payload
+
+
 def bootstrap(state_root: Path) -> dict:
     paths = file_paths(state_root)
     if paths.state.exists():
@@ -156,7 +173,7 @@ def bootstrap(state_root: Path) -> dict:
             sys.executable, str(ROOT / "daily_paper.py"), "auto-update",
             "--state-root", str(state_root),
         ])
-        payload = json.loads(result.stdout)
+        payload = last_json_object(result.stdout)
         if not payload.get("committed"):
             break
         committed_days.append(payload["date"])

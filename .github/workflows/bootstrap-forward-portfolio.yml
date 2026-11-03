@@ -1,0 +1,70 @@
+name: Bootstrap BTCUSDT forward paper portfolio (one-time)
+
+# Run this once, manually, when no forward portfolio exists yet. It
+# reproduces the manual "Advanced manual reference" steps from the README:
+# rebuild the already-documented real BTCUSDT base dataset from the official
+# Binance Public Data archives recorded in
+# data/real/binance_btcusdt_daily_2025-01-01_2026-08-31.metadata.json,
+# verify every archive and the final file against that committed record,
+# initialize the portfolio with the registry's fixed sma-crossover-paper-v1
+# (5/20) settings, then call daily_paper.py auto-update repeatedly to catch
+# up to the latest completed UTC day. See bootstrap_forward_portfolio.py for
+# the full explanation, including why the resulting candles are classified
+# catch_up rather than contemporaneous.
+#
+# Safe to run only when the cache seeded by this workflow (or an equivalent
+# existing paper_portfolios/) does not already exist - it refuses to
+# overwrite an existing portfolio. After this run succeeds, the daily
+# daily-btcusdt-paper-update.yml workflow continues from the resulting
+# state automatically.
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Refuse to run if portfolio state already exists
+        id: restore
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            paper_portfolios
+            data/real
+          key: btcusdt-daily-paper-state-does-not-exist
+          restore-keys: |
+            btcusdt-daily-paper-state-
+
+      - name: Abort if a portfolio was found
+        if: steps.restore.outputs.cache-hit == 'true' || steps.restore.outputs.cache-matched-key != ''
+        run: |
+          if [ -f paper_portfolios/crypto/BTCUSDT.json ]; then
+            echo "::error::A portfolio already exists in the cache. Bootstrap is one-time only; use the daily workflow or daily_paper.py update/auto-update instead."
+            exit 1
+          fi
+
+      - name: Run the one-time bootstrap
+        run: python3 bootstrap_forward_portfolio.py --state-root paper_portfolios
+
+      - name: Show gate progress
+        if: always()
+        run: python3 daily_paper.py progress --state-root paper_portfolios
+
+      - name: Save the bootstrapped state
+        if: success()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            paper_portfolios
+            data/real
+          key: btcusdt-daily-paper-state-${{ github.run_id }}

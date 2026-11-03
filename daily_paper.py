@@ -10,6 +10,8 @@ import json
 import subprocess
 import sys
 import tempfile
+import urllib.error
+import urllib.request
 import zipfile
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -179,6 +181,34 @@ def progress(state_root: Path, registry_path: Path = ROOT / "research_registry.j
         }
 
 
+def download(url: str, dest: Path, *, timeout: int = 60) -> None:
+    request = urllib.request.Request(url, headers={"User-Agent": "trading-bot-daily-paper-operator"})
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response, dest.open("wb") as handle:
+            handle.write(response.read())
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            raise OperatorError(f"Not yet published by Binance Public Data: {url}") from exc
+        raise OperatorError(f"Download failed ({exc.code}) for {url}") from exc
+    except urllib.error.URLError as exc:
+        raise OperatorError(f"Download failed for {url}: {exc.reason}") from exc
+
+
+def fetch_archive(day: date, dest_dir: Path) -> tuple[Path, Path]:
+    """Fetch the official daily archive and its published checksum for one candle.
+
+    This only ever reaches the same public, documented Binance Public Data
+    endpoint the README tells a human operator to curl by hand; it does not
+    add any new data source, trading, or order-submission capability.
+    """
+    name = f"BTCUSDT-1d-{day.isoformat()}.zip"
+    archive = dest_dir / name
+    checksum = dest_dir / f"{name}.CHECKSUM"
+    download(f"{OFFICIAL_BASE}/{name}", archive)
+    download(f"{OFFICIAL_BASE}/{name}.CHECKSUM", checksum)
+    return archive, checksum
+
+
 def run_paper(arguments: list[str]) -> dict:
     result = subprocess.run(
         [sys.executable, str(ROOT / "paper.py"), *arguments],
@@ -220,7 +250,26 @@ def readiness_args(state: dict, state_root: Path, csv_path: Path, metadata_path:
 
 
 def update(args: argparse.Namespace) -> int:
-    state_root = args.state_root.resolve()
+    return perform_update(
+        state_root=args.state_root,
+        archive=args.archive,
+        checksum=args.checksum,
+        retrieval_date=args.retrieval_date,
+        synthetic_demo=args.synthetic_demo,
+        auto_confirm=getattr(args, "yes", False),
+    )
+
+
+def perform_update(
+    *,
+    state_root: Path,
+    archive: Path,
+    checksum: Path,
+    retrieval_date: date,
+    synthetic_demo: bool,
+    auto_confirm: bool,
+) -> int:
+    state_root = state_root.resolve()
     state, paths = paths_for(state_root)
     before_state = sha256(paths.state)
     before_events = sha256(paths.events)
@@ -230,8 +279,8 @@ def update(args: argparse.Namespace) -> int:
     try:
         if state["strategy_version"] != "sma-crossover-paper-v1":
             raise OperatorError("This operator is restricted to sma-crossover-paper-v1")
-        day, archive_hash, row = verify_archive(args.archive.resolve(), args.checksum.resolve())
-        if args.retrieval_date <= day:
+        day, archive_hash, row = verify_archive(archive.resolve(), checksum.resolve())
+        if retrieval_date <= day:
             raise OperatorError("Retrieval date must be after the completed UTC candle date")
         expected_day = date.fromisoformat(state["last_processed_date"]) + timedelta(days=1)
         if day != expected_day:
@@ -243,9 +292,9 @@ def update(args: argparse.Namespace) -> int:
         if state.get("dataset_kind") == "real":
             if not str(metadata.get("provider", "")).startswith("Binance Public Data"):
                 raise OperatorError("Real portfolio metadata provider must be Binance Public Data")
-            source_url = f"{OFFICIAL_BASE}/{args.archive.name}"
-        elif args.synthetic_demo:
-            source_url = f"https://example.invalid/synthetic/{args.archive.name}"
+            source_url = f"{OFFICIAL_BASE}/{archive.name}"
+        elif synthetic_demo:
+            source_url = f"https://example.invalid/synthetic/{archive.name}"
         else:
             raise OperatorError("Synthetic portfolios require --synthetic-demo and never count as evidence")
 
@@ -262,7 +311,7 @@ def update(args: argparse.Namespace) -> int:
                 source_csv, source_metadata, temp_csv, temp_metadata,
                 candle_date=day.isoformat(), open_value=row[1], high=row[2], low=row[3],
                 close=row[4], volume=row[5], source_url=source_url,
-                source_sha256=archive_hash, retrieval_date=args.retrieval_date.isoformat(),
+                source_sha256=archive_hash, retrieval_date=retrieval_date.isoformat(),
                 confirmed_complete=True,
             )
             readiness = run_paper(readiness_args(state, state_root, temp_csv, temp_metadata, day))
@@ -276,7 +325,9 @@ def update(args: argparse.Namespace) -> int:
                 "proposed_events": preview.get("new_events", []),
                 "projected_portfolio": preview.get("portfolio"),
             }, indent=2))
-            if input("Type COMMIT to apply this paper update: ").strip() != "COMMIT":
+            if auto_confirm:
+                print("--yes supplied: auto-confirming the exact proposed update shown above.")
+            elif input("Type COMMIT to apply this paper update: ").strip() != "COMMIT":
                 print("Cancelled. Portfolio, registry, and versioned datasets were not changed.")
                 return 0
             temp_csv.replace(final_csv)
@@ -323,6 +374,57 @@ def update(args: argparse.Namespace) -> int:
         return 1
 
 
+def auto_update(args: argparse.Namespace) -> int:
+    """Unattended version of `update`: fetches the next required archive itself.
+
+    This removes the manual "download two files, run the command, type COMMIT"
+    labor, but changes nothing about what gets verified or how a candle is
+    classified: it still checksum-verifies the official archive, still runs
+    readiness and preview before committing, still refuses a candle before it
+    is a completed UTC session, and the resulting event is still stamped
+    `contemporaneous` or `catch_up` purely from the real wall-clock commit
+    time (see `paper.observation_classification`). Running this daily, close
+    to candle close, is what earns `contemporaneous` credit reliably instead
+    of accumulating `catch_up` candles between manual sessions.
+    """
+    state_root = args.state_root.resolve()
+    try:
+        state, _ = paths_for(state_root)
+    except OperatorError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+    if not args.synthetic_demo and state.get("dataset_kind") != "real":
+        print("ERROR: auto-update without --synthetic-demo requires a dataset_kind=real portfolio", file=sys.stderr)
+        return 1
+    expected_day = date.fromisoformat(state["last_processed_date"]) + timedelta(days=1)
+    today = (args.retrieval_date or datetime.now(timezone.utc).date())
+    if expected_day >= today:
+        print(json.dumps({
+            "fetched": False,
+            "reason": f"{expected_day.isoformat()} cannot be a completed UTC candle yet",
+            "last_processed_date": state["last_processed_date"],
+        }, indent=2))
+        return 0
+    with tempfile.TemporaryDirectory(prefix="daily-paper-fetch-", dir=ROOT) as temp_dir:
+        try:
+            archive, checksum = fetch_archive(expected_day, Path(temp_dir))
+        except OperatorError as exc:
+            print(json.dumps({
+                "fetched": False,
+                "reason": str(exc),
+                "requested_date": expected_day.isoformat(),
+            }, indent=2))
+            return 0
+        return perform_update(
+            state_root=state_root,
+            archive=archive,
+            checksum=checksum,
+            retrieval_date=today,
+            synthetic_demo=args.synthetic_demo,
+            auto_confirm=True,
+        )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -335,6 +437,17 @@ def main() -> int:
     update_parser.add_argument("--retrieval-date", type=date.fromisoformat, required=True)
     update_parser.add_argument("--state-root", type=Path, default=ROOT / "paper_portfolios")
     update_parser.add_argument("--synthetic-demo", action="store_true", help="Only for an explicitly synthetic portfolio")
+    update_parser.add_argument(
+        "--yes", action="store_true",
+        help="Skip the interactive COMMIT prompt and auto-confirm the exact proposed update (for unattended use)",
+    )
+    auto_parser = subparsers.add_parser(
+        "auto-update",
+        help="Unattended: fetch the next official archive+checksum itself, verify, preview, and commit",
+    )
+    auto_parser.add_argument("--state-root", type=Path, default=ROOT / "paper_portfolios")
+    auto_parser.add_argument("--retrieval-date", type=date.fromisoformat, default=None)
+    auto_parser.add_argument("--synthetic-demo", action="store_true", help="Only for an explicitly synthetic portfolio")
     args = parser.parse_args()
     if args.command == "progress":
         try:
@@ -343,6 +456,8 @@ def main() -> int:
         except (OperatorError, OSError, KeyError, ValueError) as exc:
             print(f"ERROR: {exc}", file=sys.stderr)
             return 1
+    if args.command == "auto-update":
+        return auto_update(args)
     return update(args)
 
 

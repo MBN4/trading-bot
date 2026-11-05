@@ -64,13 +64,13 @@ jobs:
             btcusdt-daily-paper-state-
 
       - name: Fail with setup instructions if no portfolio state was found
-        if: steps.restore.outputs.cache-hit != 'true'
+        if: steps.restore.outputs.cache-matched-key == ''
         run: |
-          echo "::error::No cached paper_portfolios/data state found. Complete the one-time local init from the README (section: Advanced manual reference) and seed the actions cache before this workflow can run. See the comment block at the top of this workflow file."
+          echo "::error::No cached paper_portfolios/data state found (no exact or fallback cache match). Complete the one-time local init from the README (section: Advanced manual reference) and seed the actions cache before this workflow can run. See the comment block at the top of this workflow file."
           exit 1
 
       - name: Run the unattended daily update
-        run: python3 daily_paper.py auto-update --yes --state-root paper_portfolios
+        run: python3 daily_paper.py auto-update --state-root paper_portfolios
 
       - name: Show gate progress
         if: always()

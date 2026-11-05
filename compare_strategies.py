@@ -1,4 +1,17 @@
-"""Preregistered, offline BTCUSDT strategy comparison. Paper research only."""
+"""Preregistered, offline BTCUSDT strategy comparison. Paper research only.
+
+rsi_mean_reversion and macd_crossover were added after the original
+2026-09-23 plan was frozen and its 2024/2026 holdouts were consumed (see
+RESEARCH_PLAN.md). Running them against the 2022-2024 development/validation
+periods for candidate selection is consistent with the existing protocol
+(those are not holdouts). But their results over the 2025 confirmation and
+2026 holdout periods are NOT a valid preregistered confirmation test: that
+data was already viewed before these strategies existed, so any outcome
+there is descriptive/exploratory only and must not be reported as evidence
+toward promotion. A real confirmation for these candidates requires
+genuinely new data dated after they were added, selected and frozen,
+exactly like the original plan required for its own candidates.
+"""
 import argparse
 import json
 from datetime import date, timedelta
@@ -7,6 +20,8 @@ from pathlib import Path
 from agent import buy_and_hold_benchmark, maximum_drawdown, read_bars, validate_currencies
 from paper import read_metadata
 
+
+ORIGINAL_FROZEN_PLAN_STRATEGIES = {'sma_crossover', 'price_sma_filter', 'donchian_breakout'}
 
 STRATEGY_GRIDS = {
     'sma_crossover': [
@@ -24,7 +39,56 @@ STRATEGY_GRIDS = {
         {'entry': 55, 'exit': 20},
         {'entry': 100, 'exit': 40},
     ],
+    'rsi_mean_reversion': [
+        {'period': 14, 'oversold': 30, 'exit_level': 50},
+        {'period': 14, 'oversold': 25, 'exit_level': 55},
+        {'period': 21, 'oversold': 30, 'exit_level': 50},
+    ],
+    'macd_crossover': [
+        {'fast': 12, 'slow': 26, 'signal': 9},
+        {'fast': 8, 'slow': 17, 'signal': 9},
+        {'fast': 12, 'slow': 26, 'signal': 12},
+    ],
 }
+
+
+def ema_series(values, period):
+    """Exponential moving average over the full series, oldest first."""
+    if not values:
+        return []
+    multiplier = 2 / (period + 1)
+    series = [values[0]]
+    for value in values[1:]:
+        series.append((value - series[-1]) * multiplier + series[-1])
+    return series
+
+
+def rsi_value(closes, period):
+    """Simple-average RSI over the most recent `period` changes, or None if not enough history."""
+    if len(closes) < period + 1:
+        return None
+    gains, losses = [], []
+    for index in range(len(closes) - period, len(closes)):
+        change = closes[index] - closes[index - 1]
+        gains.append(max(change, 0.0))
+        losses.append(max(-change, 0.0))
+    average_gain = sum(gains) / period
+    average_loss = sum(losses) / period
+    if average_loss == 0:
+        return 100.0
+    relative_strength = average_gain / average_loss
+    return 100 - (100 / (1 + relative_strength))
+
+
+def macd_value(closes, fast, slow, signal_period):
+    """Return (macd_line, signal_line) at the latest close, or (None, None) if not enough history."""
+    if len(closes) < slow + signal_period:
+        return None, None
+    fast_ema = ema_series(closes, fast)
+    slow_ema = ema_series(closes, slow)
+    macd_line = [f - s for f, s in zip(fast_ema, slow_ema)]
+    signal_line = ema_series(macd_line, signal_period)
+    return macd_line[-1], signal_line[-1]
 
 BASE_SETTINGS = {
     'initial': 5000.0,
@@ -57,6 +121,19 @@ def strategy_target(strategy, params, completed_closes, currently_long):
         if currently_long:
             return not (latest < min(prior))
         return latest > max(prior)
+    if strategy == 'rsi_mean_reversion':
+        value = rsi_value(completed_closes, params['period'])
+        if value is None:
+            return False
+        if currently_long:
+            return value < params['exit_level']
+        return value < params['oversold']
+    if strategy == 'macd_crossover':
+        macd_line, signal_line = macd_value(
+            completed_closes, params['fast'], params['slow'], params['signal'])
+        if macd_line is None:
+            return False
+        return macd_line > signal_line
     raise ValueError(f'Unknown strategy: {strategy}')
 
 
@@ -215,6 +292,7 @@ def run_comparison(development_bars, later_bars):
             'holdout_trade_count_between_2_and_30': 2 <= holdout_result['trade_count'] <= 30,
             'positive_holdout_under_moderate_costs': sensitivities[0]['return_pct'] > 0,
         }
+        in_original_plan = strategy in ORIGINAL_FROZEN_PLAN_STRATEGIES
         champion_results.append({
             'strategy': strategy,
             'parameters': params,
@@ -224,8 +302,18 @@ def run_comparison(development_bars, later_bars):
             'untouched_holdout_2026': compact_period(holdout_result),
             'holdout_cost_sensitivity': sensitivities,
             'success_criteria': criteria,
-            'earned_further_paper_testing': all(criteria.values()),
+            'part_of_original_frozen_plan': in_original_plan,
+            'confirmation_and_holdout_are_valid_preregistered_tests': in_original_plan,
+            'earned_further_paper_testing': all(criteria.values()) and in_original_plan,
         })
+        if not in_original_plan:
+            champion_results[-1]['warning'] = (
+                'This strategy was added after the 2025/2026 periods above were already '
+                'viewed and consumed as holdouts for the original plan. Its confirmation_2025 '
+                'and untouched_holdout_2026 figures are descriptive/exploratory only, not a '
+                'valid preregistered confirmation, so earned_further_paper_testing is forced '
+                'to false regardless of the numbers. A real test requires genuinely new data.'
+            )
 
     for candidate in all_candidates:
         candidate.pop('_order')

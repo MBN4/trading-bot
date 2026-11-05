@@ -59,6 +59,28 @@ The plan above was frozen before later-data retrieval. The 20 planned Binance ar
 
 Family champions selected from 2022-2024 were SMA crossover `15/40`, price/SMA `150`, and Donchian `55/20`. All three had negative 2025 confirmation returns: -0.71%, -2.25%, and -4.67%, respectively. Their sealed 2026 holdout returns were -0.21%, 0.97%, and 0.59%. Therefore none passed every preregistered criterion, even though the latter two remained slightly positive under moderate and higher costs. That holdout is now consumed. No strategy earned the plan's status of further forward paper testing. The project remains research-only and unsuitable for live trading.
 
+## Strategy catalog expansion (2026-11-05)
+
+Two additional candidate families, `rsi_mean_reversion` (14/21-period RSI,
+oversold 25-30, exit 50-55) and `macd_crossover` (12/26/9 and 8/17/9 EMA
+settings), were added to `compare_strategies.py`'s `STRATEGY_GRIDS` after
+this plan's 2024 and 2026 holdouts were already consumed. Per this plan's
+own rule against introducing candidates after a holdout is viewed, these are
+exploratory additions to the offline backtesting tool only:
+
+- Selecting among their parameters using the 2022-2024 validation periods is
+  not a holdout-reuse problem (validation periods were never sealed), so
+  that part follows the original protocol.
+- Any figure `compare_strategies.py` computes for them over 2025 or 2026 is
+  explicitly marked `confirmation_and_holdout_are_valid_preregistered_tests:
+  false` in its report and cannot earn `earned_further_paper_testing`,
+  because that data was already viewed before these candidates existed.
+- These strategies are not registered in `research_registry.json` and are
+  not candidates for the active forward paper portfolio. Doing that would
+  require a `research.py propose` entry with a future-data-start date after
+  all currently viewed/consumed dates, and a separate human decision, per
+  "Controlled follow-up" below.
+
 ## Controlled follow-up
 
 `research_registry.json` is now the source of truth for strategy versions, fixed rules and parameters, development data, viewed periods, consumed holdouts, evaluated failures, proposals, and fresh-data status. The active forward-paper baseline is `sma-crossover-paper-v1` with fixed `5/20` windows. The comparison champions remain `evaluated_failed`; they are not active.

@@ -2,8 +2,9 @@ import unittest
 from datetime import date, timedelta
 
 from agent import Bar
-from compare_strategies import (BASE_SETTINGS, run_comparison, simulate_candidate,
-                                strategy_target, validate_daily_range)
+from compare_strategies import (BASE_SETTINGS, STRATEGY_GRIDS, macd_value, rsi_value,
+                                run_comparison, simulate_candidate, strategy_target,
+                                validate_daily_range)
 
 
 def daily_bars(start, end, close_fn):
@@ -29,6 +30,29 @@ class StrategyComparisonTests(unittest.TestCase):
         self.assertFalse(strategy_target('price_sma_filter', {'window': 100}, falling, False))
         self.assertTrue(strategy_target('donchian_breakout', {'entry': 20, 'exit': 10}, rising, False))
         self.assertFalse(strategy_target('donchian_breakout', {'entry': 20, 'exit': 10}, falling, True))
+
+    def test_rsi_mean_reversion_enters_oversold_and_exits_on_recovery(self):
+        falling_then_flat = [100 - i for i in range(15)] + [85] * 5
+        rising_then_flat = [100 + i for i in range(15)] + [115] * 5
+        params = {'period': 14, 'oversold': 30, 'exit_level': 50}
+
+        self.assertEqual(rsi_value(falling_then_flat, 14), 0.0)
+        self.assertEqual(rsi_value(rising_then_flat, 14), 100.0)
+        self.assertIsNone(rsi_value(falling_then_flat[:10], 14))
+        self.assertTrue(strategy_target('rsi_mean_reversion', params, falling_then_flat, False))
+        self.assertFalse(strategy_target('rsi_mean_reversion', params, rising_then_flat, False))
+        self.assertFalse(strategy_target('rsi_mean_reversion', params, rising_then_flat, True))
+
+    def test_macd_crossover_follows_trend_direction(self):
+        rising = [100 + i * 0.5 for i in range(60)]
+        falling = [100 - i * 0.5 for i in range(60)]
+        params = {'fast': 12, 'slow': 26, 'signal': 9}
+
+        macd_line, signal_line = macd_value(rising, 12, 26, 9)
+        self.assertGreater(macd_line, signal_line)
+        self.assertEqual(macd_value(rising[:20], 12, 26, 9), (None, None))
+        self.assertTrue(strategy_target('macd_crossover', params, rising, False))
+        self.assertFalse(strategy_target('macd_crossover', params, falling, False))
 
     def test_donchian_retains_position_between_exit_and_entry_levels(self):
         prices = [100] * 21 + [101, 100.5]
@@ -66,7 +90,8 @@ class StrategyComparisonTests(unittest.TestCase):
         first = run_comparison(development, later_a)
         second = run_comparison(development, later_b)
 
-        self.assertEqual(len(first['all_candidates']), 9)
+        expected_candidate_count = sum(len(grid) for grid in STRATEGY_GRIDS.values())
+        self.assertEqual(len(first['all_candidates']), expected_candidate_count)
         self.assertTrue(all(len(item['validation_periods']) == 3
                             for item in first['all_candidates']))
         self.assertEqual(

@@ -53,9 +53,19 @@ name: Daily BTCUSDT forward paper update
 
 on:
   schedule:
-    # Once per day, well inside the "first UTC calendar day after candle
+    # Twice per day, well inside the "first UTC calendar day after candle
     # close" window the project's contemporaneous-observation rule requires.
-    - cron: "0 6 * * *"
+    # GitHub often starts scheduled runs hours late (observed: 06:00 runs
+    # starting 13:11-15:40 UTC) and can drop them under load, so:
+    #   - minutes are off the top of the hour, where queueing is heaviest;
+    #   - the second time is a backup. If the first run already committed the
+    #     candle, it is a no-op ("fetched": false), and it makes no changes.
+    #     If the first run failed, a successful second run also closes the
+    #     daily-run-failure issue.
+    # Even a 10-hour delay on the 10:43 run still starts before the 22:00 UTC
+    # late-run cutoff below.
+    - cron: "17 6 * * *"
+    - cron: "43 10 * * *"
   workflow_dispatch:
     inputs:
       restore_from_run_id:

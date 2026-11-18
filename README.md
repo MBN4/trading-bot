@@ -442,6 +442,35 @@ If Binance has not published the next archive yet, this is a normal, non-error n
 
 A ready-to-use GitHub Actions workflow is included at `.github/workflows/daily-btcusdt-paper-update.yml`: it runs once a day, calls `daily_paper.py auto-update --yes`, and persists `paper_portfolios/` and `data/real/` between runs with `actions/cache` (not by committing them — both remain git-ignored runtime state and licensed market data, same as in manual operation). Before it can do anything, complete the existing one-time local `init` from "Advanced manual reference" below and seed that cache once; the workflow file's header comment explains how. Review every run's `progress` output periodically — automating the daily step does not automate reading the result or deciding what to do with it.
 
+The workflow also has four operational safeguards. None of them change the strategy, parameters, costs, registry, or observation classification:
+
+- **Encrypted state backup.** After every successful run, `paper_portfolios/` and `data/real/` are packed into `btcusdt-paper-state.tar.gz`, encrypted with AES-256 (`gpg --symmetric`) using the repository secret `PAPER_STATE_BACKUP_PASSPHRASE`, and uploaded as the `btcusdt-paper-state-backup` artifact with 90-day retention. This repository is public and any signed-in GitHub user can download a public repository's artifacts, so the backup is only uploaded encrypted (the CSVs are licensed market data). **One-time setup:** add the secret under *Settings → Secrets and variables → Actions*, and keep a copy of the passphrase somewhere you control. Without the secret, runs still succeed but log a `State backup skipped` warning.
+- **Keep-alive.** GitHub disables scheduled workflows in public repositories after 60 days without repository activity. The `keepalive` job calls the "enable workflow" API on this (already enabled) workflow on every run. That resets the inactivity timer without commits, branches, or other history.
+- **Failure alert.** If the update fails or is cancelled, the `notify` job opens one issue titled "Daily BTCUSDT paper update failed" with the `daily-run-failure` label, or comments on it if it is already open. The next successful run comments and closes it. Watch the repository (or at least its issues) to get these notifications.
+- **Late-run guard.** The first step logs the run's UTC start time. If the run starts at or after 22:00 UTC, it is marked failed with a `Late daily run` error, which also triggers the failure issue. The update itself is still attempted before the run fails. Skipping it could not earn any credit, and it might still commit before 24:00 UTC.
+
+#### Restoring state from the encrypted Actions artifact
+
+Use this if the Actions cache was evicted or expired (the daily run fails with "No cached paper_portfolios/data state found"), or the cached state is damaged. Pick the **most recent successful** run that has a `btcusdt-paper-state-backup` artifact (see the run's *Artifacts* section). Restoring an older backup rolls the portfolio back, and candles between that backup and now are then reprocessed as `catch_up`.
+
+In GitHub Actions: open *Actions → Daily BTCUSDT forward paper update → Run workflow*, and set `restore_from_run_id` to that run's numeric ID (the number at the end of its URL). That run downloads and decrypts the artifact instead of reading the cache. It then runs the normal update and saves the result as the new cache entry, so later scheduled runs continue from it. It will not overwrite existing state on the runner. Or from the command line:
+
+```bash
+gh workflow run daily-btcusdt-paper-update.yml -f restore_from_run_id=RUN_ID
+```
+
+To inspect or restore a backup locally (for example, to compare it with your own backups), download it, then decrypt it into an empty directory:
+
+```bash
+gh run download RUN_ID -n btcusdt-paper-state-backup -D restore-RUN_ID
+```
+
+```bash
+gpg --decrypt restore-RUN_ID/btcusdt-paper-state.tar.gz.gpg | tar -xzf - -C restore-RUN_ID
+```
+
+Then follow "Backup and restore" below to swap it into your working copy and verify it with `paper.py status` and `daily_paper.py progress` before any update. Never hand-edit the restored state or event files.
+
 ### Catching up
 
 Run the guided `update` command once per missed date, oldest first. Confirm each date separately. Never skip an unavailable archive: stop at that gap until both its ZIP and CHECKSUM exist and verify. Decisions, signals, and fills reconstructed for a late candle retain normal simulated accounting but are stamped `catch_up` in every newly emitted event and do not count toward 90. If catch-up reaches a candle still inside its next-UTC-day window, that candle is independently stamped `contemporaneous`; this is a mixed sequence, not retroactive credit for earlier rows. Re-run `progress` after each update. Do not combine archive rows, use the current UTC day, or inspect later strategy outcomes to revise the fixed rules.

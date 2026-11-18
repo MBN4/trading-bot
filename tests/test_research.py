@@ -2,6 +2,7 @@ import copy
 import json
 import tempfile
 import unittest
+from datetime import date, timedelta
 from pathlib import Path
 
 from research import (forward_performance, read_registry, record_proposal,
@@ -13,6 +14,29 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def registry_copy():
     return read_registry(ROOT / 'research_registry.json')
+
+
+# Dates are derived from the live registry rather than hardcoded, because the
+# daily operating protocol advances `available_fresh_data.through` over time.
+def viewed_through(registry=None):
+    registry = registry or registry_copy()
+    return date.fromisoformat(registry['available_fresh_data']['through'])
+
+
+def first_fresh_day(registry=None):
+    return viewed_through(registry) + timedelta(days=1)
+
+
+def fresh_day(offset=0):
+    return str(first_fresh_day() + timedelta(days=offset))
+
+
+def consumed_holdout_end(period_id):
+    for period in registry_copy()['data_periods']:
+        if period['id'] == period_id:
+            assert period['status'] == 'consumed_holdout', period
+            return date.fromisoformat(period['end'])
+    raise AssertionError(f'{period_id} not found in research_registry.json')
 
 
 def bar(day, open_price, close):
@@ -31,21 +55,21 @@ def performance_state(kind='real', version='sma-crossover-paper-v1'):
         'fee': 0.01,
         'slippage': 0.0,
         'processed_bars': [
-            bar('2026-09-01', 100, 100),
-            bar('2026-09-02', 100, 110),
+            bar(fresh_day(0), 100, 100),
+            bar(fresh_day(1), 100, 110),
         ],
         'fills': [
-            {'fill_date': '2026-09-01', 'fee': 10.0},
-            {'fill_date': '2026-09-02', 'fee': 11.0},
+            {'fill_date': fresh_day(0), 'fee': 10.0},
+            {'fill_date': fresh_day(1), 'fee': 11.0},
         ],
     }
 
 
 def performance_history():
     return [
-        {'type': 'CANDLE_PROCESSED', 'date': '2026-09-01', 'equity': 1000.0,
+        {'type': 'CANDLE_PROCESSED', 'date': fresh_day(0), 'equity': 1000.0,
          'observation_classification': 'contemporaneous'},
-        {'type': 'CANDLE_PROCESSED', 'date': '2026-09-02', 'equity': 1100.0,
+        {'type': 'CANDLE_PROCESSED', 'date': fresh_day(1), 'equity': 1100.0,
          'observation_classification': 'contemporaneous'},
     ]
 
@@ -58,8 +82,13 @@ class ResearchControlTests(unittest.TestCase):
         self.assertEqual(consumed['btc-holdout-2024']['status'], 'consumed_holdout')
         self.assertEqual(consumed['btc-holdout-2026']['status'], 'consumed_holdout')
         self.assertEqual(report['overall_status'], 'paper_research_only_no_strategy_passed')
-        self.assertEqual(report['available_fresh_data']['status'],
-                         'forward_observation_gate_zero_of_90')
+        registry = registry_copy()
+        fresh = report['available_fresh_data']
+        # The count word advances as the forward test progresses; check the
+        # shape and that the report passes the registry value through.
+        self.assertRegex(fresh['status'], r'^forward_observation_gate_[a-z_]+_of_90$')
+        self.assertEqual(fresh['status'], registry['available_fresh_data']['status'])
+        self.assertEqual(fresh['through'], str(viewed_through(registry)))
 
     def test_proposal_is_isolated_from_active_strategy(self):
         registry = registry_copy()
@@ -70,7 +99,7 @@ class ResearchControlTests(unittest.TestCase):
             rules='Demo rule, never deployed.', parameters={'window': 60},
             reasoning='Exercise proposal isolation.',
             criteria={'minimum_return_pct': 1, 'minimum_rows': 90},
-            future_data_start='2026-09-25')
+            future_data_start=str(first_fresh_day(registry)))
 
         self.assertEqual(proposal['status'], 'proposed_not_active')
         self.assertFalse(proposal['is_active'])
@@ -84,12 +113,12 @@ class ResearchControlTests(unittest.TestCase):
             record_proposal(
                 registry, proposal_id='bad-date', base_version='sma-crossover-paper-v1',
                 rules='x', parameters={'x': 1}, reasoning='x', criteria={'x': 1},
-                future_data_start='2026-09-24')
+                future_data_start=str(viewed_through(registry)))
         with self.assertRaisesRegex(ValueError, 'active paper strategy'):
             record_proposal(
                 registry, proposal_id='bad-base', base_version='price-sma-150-eval-v1',
                 rules='x', parameters={'x': 1}, reasoning='x', criteria={'x': 1},
-                future_data_start='2026-09-25')
+                future_data_start=str(first_fresh_day(registry)))
 
     def test_performance_calculation_matches_cash_and_buy_hold(self):
         registry = registry_copy()
@@ -117,17 +146,20 @@ class ResearchControlTests(unittest.TestCase):
         self.assertTrue(any(item.startswith('contemporaneous_observations_')
                             for item in synthetic['limitations']))
 
+        holdout_end = consumed_holdout_end('btc-holdout-2026')
+        day1 = str(holdout_end - timedelta(days=1))
+        day2 = str(holdout_end)
         reused_state = performance_state()
         reused_state['processed_bars'] = [
-            bar('2026-08-30', 100, 100), bar('2026-08-31', 100, 110)]
+            bar(day1, 100, 100), bar(day2, 100, 110)]
         reused_state['fills'] = [
-            {'fill_date': '2026-08-30', 'fee': 10},
-            {'fill_date': '2026-08-31', 'fee': 10},
+            {'fill_date': day1, 'fee': 10},
+            {'fill_date': day2, 'fee': 10},
         ]
         reused_history = [
-            {'type': 'CANDLE_PROCESSED', 'date': '2026-08-30', 'equity': 1000,
+            {'type': 'CANDLE_PROCESSED', 'date': day1, 'equity': 1000,
              'observation_classification': 'contemporaneous'},
-            {'type': 'CANDLE_PROCESSED', 'date': '2026-08-31', 'equity': 1100,
+            {'type': 'CANDLE_PROCESSED', 'date': day2, 'equity': 1100,
              'observation_classification': 'contemporaneous'},
         ]
         registry['decision_policy']['minimum_forward_rows'] = 2
@@ -153,7 +185,8 @@ class ResearchControlTests(unittest.TestCase):
         record_proposal(
             registry, proposal_id='round-trip-demo', base_version='sma-crossover-paper-v1',
             rules='demo', parameters={'window': 60}, reasoning='demo',
-            criteria={'minimum_rows': 90}, future_data_start='2026-09-25')
+            criteria={'minimum_rows': 90},
+            future_data_start=str(first_fresh_day(registry)))
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / 'registry.json'
             path.write_text(json.dumps(registry), encoding='utf-8')

@@ -24,6 +24,29 @@ name: Daily BTCUSDT forward paper update
 #      Until that one-time seed exists, every run below just reports that no
 #      portfolio was found and exits non-zero.
 #
+# Operational safeguards (none of them touch strategy logic, parameters,
+# costs, the registry, or how observations are classified):
+#   - State backup: after every successful run the restored+updated
+#     paper_portfolios/ and data/real/ are tarred, encrypted with the
+#     PAPER_STATE_BACKUP_PASSPHRASE repo secret, and uploaded as the
+#     `btcusdt-paper-state-backup` artifact (90-day retention), so state
+#     survives an evicted/expired Actions cache. Encrypted because this repo
+#     is public: anyone signed in to GitHub can download a public repo's
+#     artifacts, and the market data must not be redistributed. Restore by
+#     running this workflow via workflow_dispatch with restore_from_run_id
+#     (README: "Restoring state from the encrypted Actions artifact").
+#   - Keep-alive: GitHub auto-disables scheduled workflows in public repos
+#     after 60 days without repository activity. The keepalive job calls the
+#     "enable workflow" API on this workflow every run, which resets that
+#     inactivity timer without creating commits.
+#   - Failure alert: any failed/cancelled run opens (or comments on) one
+#     GitHub issue labelled daily-run-failure; the next successful run
+#     comments and closes it.
+#   - Late-run guard: the run logs its UTC start time and fails loudly if it
+#     started at or after 22:00 UTC (a commit after 24:00 UTC turns that
+#     candle into catch_up). The update itself still runs first, because
+#     skipping it could only lose credit, never gain it.
+#
 # This workflow never fails loudly just because Binance has not published
 # the next archive yet (a normal daily occurrence) - `daily_paper.py
 # auto-update` reports that as a no-op with exit code 0.
@@ -33,7 +56,15 @@ on:
     # Once per day, well inside the "first UTC calendar day after candle
     # close" window the project's contemporaneous-observation rule requires.
     - cron: "0 6 * * *"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      restore_from_run_id:
+        description: >-
+          Disaster recovery only: numeric run ID of an earlier successful run
+          whose encrypted btcusdt-paper-state-backup artifact should replace
+          the Actions cache as the starting state. Leave empty for normal runs.
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -42,19 +73,43 @@ concurrency:
   group: daily-btcusdt-paper-update
   cancel-in-progress: false
 
+env:
+  STATE_ARTIFACT_NAME: btcusdt-paper-state-backup
+  STATE_ARCHIVE: btcusdt-paper-state.tar.gz.gpg
+  LATE_RUN_CUTOFF_UTC: "22:00"
+
 jobs:
   update:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read  # only used to download an artifact from another run when restoring
     steps:
-      - uses: actions/checkout@v4
+      - name: Log run start time (UTC) and check the late-run cutoff
+        id: clock
+        run: |
+          start_utc="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          start_sod=$(( $(date -u +%s) % 86400 ))
+          cutoff_sod=$(( 10#${LATE_RUN_CUTOFF_UTC%%:*} * 3600 + 10#${LATE_RUN_CUTOFF_UTC##*:} * 60 ))
+          echo "Run started at ${start_utc} (event: ${GITHUB_EVENT_NAME}); late-run cutoff is ${LATE_RUN_CUTOFF_UTC} UTC."
+          echo "start_utc=${start_utc}" >> "$GITHUB_OUTPUT"
+          if [ "$start_sod" -ge "$cutoff_sod" ]; then
+            echo "late=true" >> "$GITHUB_OUTPUT"
+            echo "::error title=Late daily run::This run started at ${start_utc}, at or after the ${LATE_RUN_CUTOFF_UTC} UTC cutoff. Any candle committed after 24:00 UTC is classified catch_up and earns no contemporaneous credit. The update will still be attempted, but this run will be marked failed. Check why the scheduled run was delayed or triggered late."
+          else
+            echo "late=false" >> "$GITHUB_OUTPUT"
+          fi
 
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
       - name: Restore paper-portfolio state
         id: restore
-        uses: actions/cache/restore@v4
+        if: ${{ !inputs.restore_from_run_id }}
+        uses: actions/cache/restore@v6
         with:
           path: |
             paper_portfolios
@@ -64,10 +119,54 @@ jobs:
             btcusdt-daily-paper-state-
 
       - name: Fail with setup instructions if no portfolio state was found
-        if: steps.restore.outputs.cache-matched-key == ''
+        if: ${{ !inputs.restore_from_run_id && steps.restore.outputs.cache-matched-key == '' }}
         run: |
-          echo "::error::No cached paper_portfolios/data state found (no exact or fallback cache match). Complete the one-time local init from the README (section: Advanced manual reference) and seed the actions cache before this workflow can run. See the comment block at the top of this workflow file."
+          echo "::error::No cached paper_portfolios/data state found (no exact or fallback cache match). If the cache expired, restore from the latest btcusdt-paper-state-backup artifact (README: \"Restoring state from the encrypted Actions artifact\"). Otherwise complete the one-time local init from the README (section: Advanced manual reference) and seed the actions cache. See the comment block at the top of this workflow file."
           exit 1
+
+      - name: Validate restore_from_run_id
+        if: ${{ inputs.restore_from_run_id }}
+        env:
+          RESTORE_RUN_ID: ${{ inputs.restore_from_run_id }}
+        run: |
+          case "$RESTORE_RUN_ID" in
+            ''|*[!0-9]*) echo "::error::restore_from_run_id must be a numeric workflow run ID, got: $RESTORE_RUN_ID"; exit 1 ;;
+          esac
+          echo "Restoring state from the backup artifact of run $RESTORE_RUN_ID instead of the Actions cache."
+
+      - name: Download encrypted state backup
+        if: ${{ inputs.restore_from_run_id }}
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ env.STATE_ARTIFACT_NAME }}
+          run-id: ${{ inputs.restore_from_run_id }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/state-restore
+
+      - name: Decrypt and unpack the state backup
+        if: ${{ inputs.restore_from_run_id }}
+        env:
+          PASSPHRASE: ${{ secrets.PAPER_STATE_BACKUP_PASSPHRASE }}
+          RESTORE_DIR: ${{ runner.temp }}/state-restore
+          RESTORE_RUN_ID: ${{ inputs.restore_from_run_id }}
+        run: |
+          set -o pipefail
+          if [ -z "$PASSPHRASE" ]; then
+            echo "::error::Repository secret PAPER_STATE_BACKUP_PASSPHRASE is not set; cannot decrypt the backup."
+            exit 1
+          fi
+          if [ -e paper_portfolios ]; then
+            echo "::error::paper_portfolios/ already exists on this runner; refusing to overwrite it."
+            exit 1
+          fi
+          gpg --batch --quiet --pinentry-mode loopback --passphrase-fd 3 \
+              --decrypt "$RESTORE_DIR/$STATE_ARCHIVE" 3<<<"$PASSPHRASE" \
+            | tar -xzf - -C .
+          test -f paper_portfolios/crypto/BTCUSDT.json || {
+            echo "::error::Backup did not contain paper_portfolios/crypto/BTCUSDT.json"; exit 1; }
+          echo "Restored state from run ${RESTORE_RUN_ID}:"
+          sha256sum paper_portfolios/crypto/BTCUSDT.json paper_portfolios/crypto/BTCUSDT.events.jsonl
+          python3 paper.py --state-root paper_portfolios status --market crypto --symbol BTCUSDT --events 5
 
       - name: Run the unattended daily update
         run: python3 daily_paper.py auto-update --state-root paper_portfolios
@@ -78,9 +177,105 @@ jobs:
 
       - name: Save updated paper-portfolio state
         if: always()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: |
             paper_portfolios
             data/real
           key: btcusdt-daily-paper-state-${{ github.run_id }}
+
+      - name: Encrypt state for the backup artifact
+        id: backup
+        if: success()
+        env:
+          PASSPHRASE: ${{ secrets.PAPER_STATE_BACKUP_PASSPHRASE }}
+        run: |
+          set -o pipefail
+          if [ -z "$PASSPHRASE" ]; then
+            echo "::warning title=State backup skipped::Repository secret PAPER_STATE_BACKUP_PASSPHRASE is not set, so no state backup artifact was uploaded. This repo is public, so the backup is only uploaded encrypted. See README: \"Restoring state from the encrypted Actions artifact\"."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          mkdir -p "$RUNNER_TEMP/state-backup"
+          tar -czf - paper_portfolios data/real \
+            | gpg --batch --quiet --yes --pinentry-mode loopback --passphrase-fd 3 \
+                  --symmetric --cipher-algo AES256 \
+                  --output "$RUNNER_TEMP/state-backup/$STATE_ARCHIVE" 3<<<"$PASSPHRASE"
+          ls -l "$RUNNER_TEMP/state-backup"
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: Upload encrypted state backup artifact
+        if: success() && steps.backup.outputs.ready == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.STATE_ARTIFACT_NAME }}
+          path: ${{ runner.temp }}/state-backup/${{ env.STATE_ARCHIVE }}
+          retention-days: 90
+          compression-level: 0  # already gzip-compressed and encrypted
+          if-no-files-found: error
+
+      - name: Fail because this run started after the late-run cutoff
+        if: always() && steps.clock.outputs.late == 'true'
+        run: |
+          echo "::error title=Late daily run::Run started at ${{ steps.clock.outputs.start_utc }}, at or after the ${LATE_RUN_CUTOFF_UTC} UTC cutoff. Check the progress output above: a candle committed after 24:00 UTC is catch_up, not contemporaneous."
+          exit 1
+
+  keepalive:
+    # GitHub disables scheduled workflows in public repos after 60 days with
+    # no repository activity. Re-enabling this (already enabled) workflow via
+    # the API resets that timer without creating commits or other history.
+    # Independent of the update job, so it still runs if the update fails.
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Keep the daily schedule enabled
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api --method PUT \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/daily-btcusdt-paper-update.yml/enable"
+          echo "Workflow enable API called; schedule inactivity timer reset."
+
+  notify:
+    # Opens (or comments on) a single issue when the update fails, so a
+    # missed day - which loses contemporaneous credit - is visible quickly.
+    # Closes that issue on the next successful run.
+    needs: update
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Open, update, or close the failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RESULT: ${{ needs.update.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          LABEL: daily-run-failure
+        run: |
+          now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          existing="$(gh issue list --label "$LABEL" --state open --limit 1 --json number --jq '.[0].number // empty' 2>/dev/null || true)"
+          if [ "$RESULT" = "success" ]; then
+            if [ -n "$existing" ]; then
+              gh issue comment "$existing" --body "Recovered: run $RUN_URL succeeded at $now. Check \`progress\` in that run to see which candles were committed as \`catch_up\`."
+              gh issue close "$existing" --reason completed
+            fi
+            exit 0
+          fi
+          body="$(printf '%s\n' \
+            "The daily BTCUSDT paper update **${RESULT}** (run: $RUN_URL, reported $now, event: \`${GITHUB_EVENT_NAME}\`)." \
+            "" \
+            "A candle earns contemporaneous credit only if it is committed during the first UTC day after its close. Investigate and re-run (workflow_dispatch) **before 22:00 UTC today** to avoid losing credit." \
+            "" \
+            "Open the run log for the failing step. If the Actions cache was lost, restore from the latest \`btcusdt-paper-state-backup\` artifact (README: \"Restoring state from the encrypted Actions artifact\")." \
+            "" \
+            "This issue is closed automatically by the next successful run.")"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh label create "$LABEL" --color B60205 \
+              --description "Daily BTCUSDT paper workflow failed" --force || true
+            gh issue create --title "Daily BTCUSDT paper update failed" --label "$LABEL" --body "$body"
+          fi

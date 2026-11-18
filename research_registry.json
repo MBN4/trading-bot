@@ -1,7 +1,7 @@
 {
   "version": 1,
   "mode": "paper_only_research",
-  "updated_through": "2026-10-05",
+  "updated_through": "2026-10-11",
   "decision_policy": {
     "minimum_forward_rows": 90,
     "minimum_forward_trades": 2,
@@ -45,6 +45,18 @@
       "end": "2026-09-29",
       "classification": "contemporaneous",
       "basis": "The official ZIP and companion checksum were verified and committed on 2026-09-30, the first UTC calendar day after the candle closed."
+    },
+    {
+      "start": "2026-10-07",
+      "end": "2026-10-10",
+      "classification": "catch_up",
+      "basis": "Official daily ZIPs and companion checksums verified; actual immutable commit timestamps are during 2026-10-12 UTC, after their next-day windows."
+    },
+    {
+      "start": "2026-10-11",
+      "end": "2026-10-11",
+      "classification": "contemporaneous",
+      "basis": "Official daily ZIP and companion checksum verified and committed at 2026-10-12T06:56:20.687826Z, within the first UTC calendar day after close."
     }
   ],
   "data_periods": [
@@ -99,14 +111,14 @@
       "note": "Opened once after preregistration; never untouched again."
     },
     {
-      "id": "btc-forward-paper-2026-09-01_2026-10-05",
+      "id": "btc-forward-paper-2026-09-01_2026-10-11",
       "start": "2026-09-01",
-      "end": "2026-10-05",
+      "end": "2026-10-11",
       "status": "viewed_forward_paper",
       "used_by": [
         "sma-crossover-paper-v1"
       ],
-      "note": "35 completed market candles: 5 verified contemporaneous observations, 28 catch-up, and 2 unknown-timing candles. There are 85 qualifying observations remaining. The earliest possible 90th qualifying candle is 2026-12-29, with review on 2026-12-30 UTC, conditional on every remaining next-day window being met. Archive hashes and actual commit timestamps are recorded in README.md and immutable portfolio events; versioned metadata preserves source provenance."
+      "note": "41 completed market candles: 7 verified contemporaneous observations, 32 catch-up, and 2 unknown-timing candles. There are 83 qualifying observations remaining. The earliest possible 90th qualifying candle is 2027-01-02, with review on 2027-01-03 UTC, conditional on every remaining next-day window being met. Archive and CSV hashes, actual commit timestamps, and the catch-up SELL fill are recorded in README.md and RESEARCH_PLAN.md; immutable events and versioned metadata preserve provenance."
     }
   ],
   "strategy_versions": [
@@ -129,7 +141,7 @@
         "btc-holdout-2024",
         "btc-confirmation-2025",
         "btc-holdout-2026",
-        "btc-forward-paper-2026-09-01_2026-10-05"
+        "btc-forward-paper-2026-09-01_2026-10-11"
       ],
       "decision": "Retained only as the existing baseline for controlled forward paper observation; no evidence of live-trading readiness."
     },
@@ -198,8 +210,8 @@
   ],
   "proposals": [],
   "available_fresh_data": {
-    "through": "2026-10-05",
-    "status": "forward_observation_gate_five_of_90",
-    "note": "35 completed market candles: 5 verified contemporaneous observations, 28 catch-up, and 2 unknown-timing candles. There are 85 qualifying observations remaining. The earliest possible 90th qualifying candle is 2026-12-29, with review on 2026-12-30 UTC, conditional on every remaining next-day window being met."
+    "through": "2026-10-11",
+    "status": "forward_observation_gate_seven_of_90",
+    "note": "41 completed market candles: 7 verified contemporaneous observations, 32 catch-up, and 2 unknown-timing candles. There are 83 qualifying observations remaining. The earliest possible 90th qualifying candle is 2027-01-02, with review on 2027-01-03 UTC, conditional on every remaining next-day window being met."
   }
 }
